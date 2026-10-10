@@ -1,0 +1,8 @@
+defaults:
+  - smpl_humanoid
+note: "SMPL+H with 16 betas and articulated fingers"
+humanoid_type: smplh
+smpl_data_dir: assets/body_models/smplh
+gender: male
+betas: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+freeze_hand: false

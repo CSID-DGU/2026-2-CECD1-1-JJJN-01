@@ -1,0 +1,31 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# macOS
+.DS_Store
+
+# Model files
+*.pkl
+*.npz
+*.pt
+*.pth
+
+# Generated meshes
+*.obj
+
+# Simulation outputs
+outputs/
+MUJOCO_LOG.TXT
+
+# SMPL body model assets
+assets/body_models/
+
+# Secrets
+.env
+.env.*
+!.env.example
