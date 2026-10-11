@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+runs/
+archive/
+data/models/**
+!data/models/.gitkeep
+data/motions/**
+!data/motions/.gitkeep

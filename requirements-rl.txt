@@ -1,0 +1,4 @@
+# Existing environment versions used for checkpoint compatibility.
+gymnasium==1.4.0
+stable-baselines3==2.9.0
+# CPU PyTorch 2.14.1+cpu is recorded in each checkpoint requirements.txt.

@@ -1,0 +1,14 @@
+{
+  "base_model_sha256": "55e4f4b2aafb056287bf831ccba22d0a0296a6a78e1f32c0a7f08078445aea19",
+  "model_sha256": "ffb36254f9686d301f5b7d4379e4d6728fe4c5013e05213144fe30fb602aeaf7",
+  "added_axes": [
+    "left_forearm_roll",
+    "right_forearm_roll"
+  ],
+  "range_rad": [
+    -1.5,
+    1.5
+  ],
+  "torque_limit_nm": 8.0,
+  "note": "Axes follow elbow-to-wrist segment; engineering range/torque, not subject-specific measurements."
+}

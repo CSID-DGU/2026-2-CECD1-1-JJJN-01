@@ -1,0 +1,733 @@
+<mujoco model="smplh_male_humanoid">
+  <compiler angle="radian" autolimits="true" inertiafromgeom="true" />
+  <option timestep="0.001" gravity="0 0 -9.81" integrator="implicitfast" cone="elliptic" iterations="80" />
+  <visual>
+    <global offwidth="1280" offheight="960" />
+    <headlight ambient="0.35 0.35 0.35" diffuse="0.7 0.7 0.7" />
+  </visual>
+  <default>
+    <joint type="hinge" damping="0.15" armature="0.01" solreflimit="0.01 1" />
+    <geom friction="0.9 0.02 0.002" condim="4" solref="0.008 1" solimp="0.9 0.95 0.001" rgba="0.45 0.65 0.85 1" />
+  </default>
+  <worldbody>
+    <light pos="2 -3 4" dir="-1 1 -2" />
+    <geom name="floor" type="plane" size="5 5 0.1" rgba="0.22 0.25 0.28 1" />
+    <body name="pelvis" pos="0 0 0.977723837">
+      <freejoint name="root" />
+      <site name="pelvis_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+      <geom type="ellipsoid" size="0.105065889 0.135084715 0.085053339" pos="0 0 -0.0150094128" name="pelvis_geom" mass="11.0717449" />
+      <body name="left_hip" pos="-0.0176640823 0.0585813485 -0.0822800547">
+        <joint name="left_hip_x" axis="1 0 0" range="-0.8 0.8" damping="0.15" armature="0.01" />
+        <joint name="left_hip_y" axis="0 1 0" range="-2 0.8" damping="0.15" armature="0.01" />
+        <joint name="left_hip_z" axis="0 0 1" range="-0.8 0.8" damping="0.15" armature="0.01" />
+        <site name="left_hip_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+        <geom type="capsule" fromto="0 0 0 0.00803700089 0.043451421 -0.386469424" size="0.0850533396" name="left_hip_geom" mass="7.75022143" />
+        <body name="left_knee" pos="0.00803700089 0.043451421 -0.386469424">
+          <joint name="left_knee_y" axis="0 1 0" range="-0.08 2.5" damping="0.15" armature="0.01" />
+          <site name="left_knee_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+          <geom type="capsule" fromto="0 0 0 -0.0374279954 -0.0147903189 -0.426874459" size="0.0643104762" name="left_knee_geom" mass="3.65367582" />
+          <body name="left_ankle" pos="-0.0374279954 -0.0147903189 -0.426874459">
+            <joint name="left_ankle_x" axis="1 0 0" range="-0.45 0.45" damping="0.15" armature="0.01" />
+            <joint name="left_ankle_y" axis="0 1 0" range="-0.8 0.6" damping="0.15" armature="0.01" />
+            <joint name="left_ankle_z" axis="0 0 1" range="-0.3 0.3" damping="0.15" armature="0.01" />
+            <site name="left_ankle_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+            <geom type="box" size="0.094640933 0.0468365662 0.0280175705" pos="0.0274014957 0.0281804502 -0.0454471111" name="left_ankle_geom" mass="0.885739593" />
+            <site name="left_sole" type="box" pos="0.0274014957 0.0281804502 -0.0734646816" size="0.094640933 0.0468365662 0.003" rgba="0 1 0 0.3" />
+            <body name="left_foot" pos="0.122042432 0.0410543606 -0.0602859259">
+              <joint name="left_foot_y" axis="0 1 0" range="-0.5 0.8" damping="0.15" armature="0.01" />
+              <site name="left_foot_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+              <geom type="box" size="0.0384759903 0.0468365662 0.0280175705" pos="0.0384759903 -0.0128739104 0.0148388147" name="left_foot_geom" mass="0.498228521" />
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="right_hip" pos="-0.0135425357 -0.0603097267 -0.0905132741">
+        <joint name="right_hip_x" axis="1 0 0" range="-0.8 0.8" damping="0.15" armature="0.01" />
+        <joint name="right_hip_y" axis="0 1 0" range="-2 0.8" damping="0.15" armature="0.01" />
+        <joint name="right_hip_z" axis="0 0 1" range="-0.8 0.8" damping="0.15" armature="0.01" />
+        <site name="right_hip_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+        <geom type="capsule" fromto="0 0 0 -0.00484303944 -0.0432566181 -0.383687884" size="0.0850533396" name="right_hip_geom" mass="7.75022143" />
+        <body name="right_knee" pos="-0.00484303944 -0.0432566181 -0.383687884">
+          <joint name="right_knee_y" axis="0 1 0" range="-0.08 2.5" damping="0.15" armature="0.01" />
+          <site name="right_knee_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+          <geom type="capsule" fromto="0 0 0 -0.0345616713 0.0190555304 -0.420045555" size="0.064015232" name="right_knee_geom" mass="3.65367582" />
+          <body name="right_ankle" pos="-0.0345616713 0.0190555304 -0.420045555">
+            <joint name="right_ankle_x" axis="1 0 0" range="-0.45 0.45" damping="0.15" armature="0.01" />
+            <joint name="right_ankle_y" axis="0 1 0" range="-0.8 0.6" damping="0.15" armature="0.01" />
+            <joint name="right_ankle_z" axis="0 0 1" range="-0.3 0.3" damping="0.15" armature="0.01" />
+            <site name="right_ankle_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+            <geom type="box" size="0.098117739 0.0466129854 0.0280175705" pos="0.0322055519 -0.0295111984 -0.0504596233" name="right_ankle_geom" mass="0.885739593" />
+            <site name="right_sole" type="box" pos="0.0322055519 -0.0295111984 -0.0784771938" size="0.098117739 0.0466129854 0.003" rgba="0 1 0 0.3" />
+            <body name="right_foot" pos="0.130323291 -0.0348398611 -0.0621056557">
+              <joint name="right_foot_y" axis="0 1 0" range="-0.5 0.8" damping="0.15" armature="0.01" />
+              <site name="right_foot_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+              <geom type="box" size="0.0367577858 0.0466129854 0.0280175705" pos="0.0367577896 0.00532866269 0.0116460323" name="right_foot_geom" mass="0.498228521" />
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="spine1" pos="-0.0383852236 0.00443944708 0.124403536">
+        <joint name="spine1_x" axis="1 0 0" range="-0.4 0.4" damping="0.15" armature="0.01" />
+        <joint name="spine1_y" axis="0 1 0" range="-0.5 0.5" damping="0.15" armature="0.01" />
+        <joint name="spine1_z" axis="0 0 1" range="-0.5 0.5" damping="0.15" armature="0.01" />
+        <site name="spine1_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+        <geom type="ellipsoid" size="0.100062752 0.115072165 0.085053339" pos="0 0 0.0400251007" name="spine1_geom" mass="5.53587245" />
+        <body name="spine2" pos="0.0268203262 0.00448844209 0.137956396">
+          <joint name="spine2_x" axis="1 0 0" range="-0.4 0.4" damping="0.15" armature="0.01" />
+          <joint name="spine2_y" axis="0 1 0" range="-0.5 0.5" damping="0.15" armature="0.01" />
+          <joint name="spine2_z" axis="0 0 1" range="-0.5 0.5" damping="0.15" armature="0.01" />
+          <site name="spine2_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+          <geom type="ellipsoid" size="0.110069027 0.140087852 0.0550345135" pos="0 0 0.0250156879" name="spine2_geom" mass="6.64304694" />
+          <body name="spine3" pos="0.00285504572 -0.0022645779 0.0560323894">
+            <joint name="spine3_x" axis="1 0 0" range="-0.4 0.4" damping="0.15" armature="0.01" />
+            <joint name="spine3_y" axis="0 1 0" range="-0.5 0.5" damping="0.15" armature="0.01" />
+            <joint name="spine3_z" axis="0 0 1" range="-0.5 0.5" damping="0.15" armature="0.01" />
+            <site name="spine3_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+            <geom type="ellipsoid" size="0.115072165 0.170106678 0.120075302" pos="0 0 0.0950596142" name="spine3_geom" mass="11.0717449" />
+            <body name="neck" pos="-0.0334675759 -0.0133901928 0.21163553">
+              <joint name="neck_x" axis="1 0 0" range="-0.5 0.5" damping="0.15" armature="0.01" />
+              <joint name="neck_y" axis="0 1 0" range="-0.6 0.6" damping="0.15" armature="0.01" />
+              <joint name="neck_z" axis="0 0 1" range="-0.8 0.8" damping="0.15" armature="0.01" />
+              <site name="neck_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+              <geom type="capsule" fromto="0 0 0 0.0504098609 0.0101132095 0.0889373422" size="0.0470294933" name="neck_geom" mass="1.10717449" />
+              <body name="head" pos="0.0504098609 0.0101132095 0.0889373422">
+                <joint name="head_x" axis="1 0 0" range="-0.5 0.5" damping="0.15" armature="0.01" />
+                <joint name="head_y" axis="0 1 0" range="-0.6 0.6" damping="0.15" armature="0.01" />
+                <joint name="head_z" axis="0 0 1" range="-0.8 0.8" damping="0.15" armature="0.01" />
+                <site name="head_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                <geom type="ellipsoid" size="0.107032441 0.0901536457 0.103487566" pos="-0.00729247555 0.0010844674 0.0777122825" name="head_geom" mass="4.98228521" />
+              </body>
+            </body>
+            <body name="left_collar" pos="-0.0188981704 0.071702458 0.113999695">
+              <joint name="left_collar_x" axis="1 0 0" range="-0.35 0.35" damping="0.15" armature="0.01" />
+              <joint name="left_collar_y" axis="0 1 0" range="-0.3 0.3" damping="0.15" armature="0.01" />
+              <joint name="left_collar_z" axis="0 0 1" range="-0.35 0.35" damping="0.15" armature="0.01" />
+              <site name="left_collar_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+              <geom type="capsule" fromto="0 0 0 -0.0190460011 0.1229214 0.0452050865" size="0.0330207081" name="left_collar_geom" mass="0.442869796" />
+              <body name="left_shoulder" pos="-0.0190460011 0.1229214 0.0452050865">
+                <joint name="left_shoulder_x" axis="1 0 0" range="-3 3" damping="0.15" armature="0.01" />
+                <joint name="left_shoulder_y" axis="0 1 0" range="-1.55 1.55" damping="0.15" armature="0.01" />
+                <joint name="left_shoulder_z" axis="0 0 1" range="-3 3" damping="0.15" armature="0.01" />
+                <site name="left_shoulder_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                <geom type="capsule" fromto="0 0 0 -0.0229464844 0.255331904 -0.0156490207" size="0.0559907891" name="left_shoulder_geom" mass="2.10363153" />
+                <body name="left_elbow" pos="-0.0229464844 0.255331904 -0.0156490207">
+                  <joint name="left_elbow_z" axis="0 0 1" range="-2.5 0.08" damping="0.15" armature="0.01" />
+                  <joint name="left_forearm_roll" axis="-0.02771261273 0.9984764034 0.04771669428" range="-1.5 1.5" damping=".05" armature=".004" /><site name="left_elbow_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                  <geom type="capsule" fromto="0 0 0 -0.00737473369 0.265709251 0.0126981139" size="0.0388780087" name="left_elbow_geom" mass="1.32860939" />
+                  <body name="left_wrist" pos="-0.00737473369 0.265709251 0.0126981139">
+                    <joint name="left_wrist_x" axis="1 0 0" range="-1.2 1.2" damping="0.15" armature="0.01" />
+                    <joint name="left_wrist_y" axis="0 1 0" range="-1 1" damping="0.15" armature="0.01" />
+                    <joint name="left_wrist_z" axis="0 0 1" range="-0.7 0.7" damping="0.15" armature="0.01" />
+                    <site name="left_wrist_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                    <geom type="box" size="0.0365867279 0.0561321229 0.0120075302" pos="-0.0063572228 0.0511289835 -0.00546570122" name="left_wrist_geom" mass="0.332152347" rgba="0.9 0.7 0.4 1" />
+                    <site name="left_palm" pos="-0.0063572228 0.0511289835 -0.00546570122" size=".012" />
+                    <body name="left_index1" pos="0.0221394096 0.105871797 -0.0110250413">
+                      <joint name="left_index1_x" axis="1 0 0" range="-0.15 1.5" damping="0.005" armature="0.00002" />
+                      <joint name="left_index1_z" axis="0 0 1" range="-0.35 0.35" damping="0.005" armature="0.00002" />
+                      <site name="left_index1_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                      <geom type="capsule" fromto="0 0 0 0.00381169654 0.0330491662 0.00172805786" size="0.00700439262" name="left_index1_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                      <body name="left_index2" pos="0.00381169654 0.0330491662 0.00172805786">
+                        <joint name="left_index2_x" axis="1 0 0" range="-0.15 1.5" damping="0.005" armature="0.00002" />
+                        <site name="left_index2_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                        <geom type="capsule" fromto="0 0 0 0.000825040042 0.0232409239 -0.00278934836" size="0.00700439262" name="left_index2_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                        <body name="left_index3" pos="0.000825040042 0.0232409239 -0.00278934836">
+                          <joint name="left_index3_x" axis="1 0 0" range="-0.15 1.5" damping="0.005" armature="0.00002" />
+                          <site name="left_index3_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                          <geom type="capsule" fromto="0 0 0 0.00086980575 0.0245019477 -0.00294069503" size="0.00700439262" name="left_index3_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                          <site name="left_index3_tip" pos="0.00086980575 0.0245019477 -0.00294069503" size=".004" />
+                        </body>
+                      </body>
+                    </body>
+                    <body name="left_middle1" pos="-0.00202704221 0.113820314 -0.00788456202">
+                      <joint name="left_middle1_x" axis="1 0 0" range="-0.15 1.5" damping="0.005" armature="0.00002" />
+                      <joint name="left_middle1_z" axis="0 0 1" range="-0.35 0.35" damping="0.005" armature="0.00002" />
+                      <site name="left_middle1_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                      <geom type="capsule" fromto="0 0 0 -0.0036835596 0.0319373012 0.000393643975" size="0.00700439262" name="left_middle1_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                      <body name="left_middle2" pos="-0.0036835596 0.0319373012 0.000393643975">
+                        <joint name="left_middle2_x" axis="1 0 0" range="-0.15 1.5" damping="0.005" armature="0.00002" />
+                        <site name="left_middle2_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                        <geom type="capsule" fromto="0 0 0 -0.00328739733 0.0244817138 -0.00237576663" size="0.00700439262" name="left_middle2_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                        <body name="left_middle3" pos="-0.00328739733 0.0244817138 -0.00237576663">
+                          <joint name="left_middle3_x" axis="1 0 0" range="-0.15 1.5" damping="0.005" armature="0.00002" />
+                          <site name="left_middle3_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                          <geom type="capsule" fromto="0 0 0 -0.00360243814 0.0268278681 -0.00260344311" size="0.00700439262" name="left_middle3_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                          <site name="left_middle3_tip" pos="-0.00360243814 0.0268278681 -0.00260344311" size=".004" />
+                        </body>
+                      </body>
+                    </body>
+                    <body name="left_pinky1" pos="-0.0443819165 0.087802887 -0.014833197">
+                      <joint name="left_pinky1_x" axis="1 0 0" range="-0.15 1.5" damping="0.005" armature="0.00002" />
+                      <joint name="left_pinky1_z" axis="0 0 1" range="-0.35 0.35" damping="0.005" armature="0.00002" />
+                      <site name="left_pinky1_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                      <geom type="capsule" fromto="0 0 0 -0.0111064017 0.0172564983 -0.000227481127" size="0.00700439262" name="left_pinky1_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                      <body name="left_pinky2" pos="-0.0111064017 0.0172564983 -0.000227481127">
+                        <joint name="left_pinky2_x" axis="1 0 0" range="-0.15 1.5" damping="0.005" armature="0.00002" />
+                        <site name="left_pinky2_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                        <geom type="capsule" fromto="0 0 0 -0.010127537 0.0170456171 -0.0014963299" size="0.00700439262" name="left_pinky2_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                        <body name="left_pinky3" pos="-0.010127537 0.0170456171 -0.0014963299">
+                          <joint name="left_pinky3_x" axis="1 0 0" range="-0.15 1.5" damping="0.005" armature="0.00002" />
+                          <site name="left_pinky3_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                          <geom type="capsule" fromto="0 0 0 -0.0106761288 0.0179689489 -0.00157738349" size="0.00700439262" name="left_pinky3_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                          <site name="left_pinky3_tip" pos="-0.0106761288 0.0179689489 -0.00157738349" size=".004" />
+                        </body>
+                      </body>
+                    </body>
+                    <body name="left_ring1" pos="-0.0265882313 0.101536751 -0.00998279452">
+                      <joint name="left_ring1_x" axis="1 0 0" range="-0.15 1.5" damping="0.005" armature="0.00002" />
+                      <joint name="left_ring1_z" axis="0 0 1" range="-0.35 0.35" damping="0.005" armature="0.00002" />
+                      <site name="left_ring1_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                      <geom type="capsule" fromto="0 0 0 -0.00366268307 0.0295284986 0.00101101398" size="0.00700439262" name="left_ring1_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                      <body name="left_ring2" pos="-0.00366268307 0.0295284986 0.00101101398">
+                        <joint name="left_ring2_x" axis="1 0 0" range="-0.15 1.5" damping="0.005" armature="0.00002" />
+                        <site name="left_ring2_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                        <geom type="capsule" fromto="0 0 0 -0.00603298098 0.0238624811 -0.00207521021" size="0.00700439262" name="left_ring2_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                        <body name="left_ring3" pos="-0.00603298098 0.0238624811 -0.00207521021">
+                          <joint name="left_ring3_x" axis="1 0 0" range="-0.15 1.5" damping="0.005" armature="0.00002" />
+                          <site name="left_ring3_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                          <geom type="capsule" fromto="0 0 0 -0.00601870334 0.0238060094 -0.00207029912" size="0.00700439262" name="left_ring3_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                          <site name="left_ring3_tip" pos="-0.00601870334 0.0238060094 -0.00207029912" size=".004" />
+                        </body>
+                      </body>
+                    </body>
+                    <body name="left_thumb1" pos="0.0288384929 0.0422746539 -0.0230857581">
+                      <joint name="left_thumb1_x" axis="1 0 0" range="-1.2 1.2" damping="0.005" armature="0.00002" />
+                      <joint name="left_thumb1_y" axis="0 1 0" range="-0.8 0.8" damping="0.005" armature="0.00002" />
+                      <joint name="left_thumb1_z" axis="0 0 1" range="-0.8 0.8" damping="0.005" armature="0.00002" />
+                      <site name="left_thumb1_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                      <geom type="capsule" fromto="0 0 0 0.0259591825 0.0183870792 0.00317420065" size="0.00900564766" name="left_thumb1_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                      <body name="left_thumb2" pos="0.0259591825 0.0183870792 0.00317420065">
+                        <joint name="left_thumb2_x" axis="1 0 0" range="-1.2 1.2" damping="0.005" armature="0.00002" />
+                        <site name="left_thumb2_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                        <geom type="capsule" fromto="0 0 0 0.0158210266 0.0222660303 -0.00257356465" size="0.00900564766" name="left_thumb2_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                        <body name="left_thumb3" pos="0.0158210266 0.0222660303 -0.00257356465">
+                          <joint name="left_thumb3_x" axis="1 0 0" range="-1.2 1.2" damping="0.005" armature="0.00002" />
+                          <site name="left_thumb3_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                          <geom type="capsule" fromto="0 0 0 0.0183938462 0.025886938 -0.00299207843" size="0.00900564766" name="left_thumb3_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                          <site name="left_thumb3_tip" pos="0.0183938462 0.025886938 -0.00299207843" size=".004" />
+                        </body>
+                      </body>
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+            <body name="right_collar" pos="-0.0237073861 -0.0829536542 0.11247234">
+              <joint name="right_collar_x" axis="1 0 0" range="-0.35 0.35" damping="0.15" armature="0.01" />
+              <joint name="right_collar_y" axis="0 1 0" range="-0.3 0.3" damping="0.15" armature="0.01" />
+              <joint name="right_collar_z" axis="0 0 1" range="-0.35 0.35" damping="0.15" armature="0.01" />
+              <site name="right_collar_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+              <geom type="capsule" fromto="0 0 0 -0.00847207103 -0.113228314 0.0468532443" size="0.0330207081" name="right_collar_geom" mass="0.442869796" />
+              <body name="right_shoulder" pos="-0.00847207103 -0.113228314 0.0468532443">
+                <joint name="right_shoulder_x" axis="1 0 0" range="-3 3" damping="0.15" armature="0.01" />
+                <joint name="right_shoulder_y" axis="0 1 0" range="-1.55 1.55" damping="0.15" armature="0.01" />
+                <joint name="right_shoulder_z" axis="0 0 1" range="-3 3" damping="0.15" armature="0.01" />
+                <site name="right_shoulder_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                <geom type="capsule" fromto="0 0 0 -0.031268727 -0.260127485 -0.0143692493" size="0.0558466911" name="right_shoulder_geom" mass="2.10363153" />
+                <body name="right_elbow" pos="-0.031268727 -0.260127485 -0.0143692493">
+                  <joint name="right_elbow_z" axis="0 0 1" range="-0.08 2.5" damping="0.15" armature="0.01" />
+                  <joint name="right_forearm_roll" axis="-0.02238256238 -0.9994310498 0.02523088638" range="-1.5 1.5" damping=".05" armature=".004" /><site name="right_elbow_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                  <geom type="capsule" fromto="0 0 0 -0.00602676347 -0.269108355 0.00679370761" size="0.0396563634" name="right_elbow_geom" mass="1.32860939" />
+                  <body name="right_wrist" pos="-0.00602676347 -0.269108355 0.00679370761">
+                    <joint name="right_wrist_x" axis="1 0 0" range="-1.2 1.2" damping="0.15" armature="0.01" />
+                    <joint name="right_wrist_y" axis="0 1 0" range="-1 1" damping="0.15" armature="0.01" />
+                    <joint name="right_wrist_z" axis="0 0 1" range="-0.7 0.7" damping="0.15" armature="0.01" />
+                    <site name="right_wrist_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                    <geom type="box" size="0.0377883613 0.0557379872 0.0120075302" pos="-0.00502255186 -0.0507348776 -0.00433987379" name="right_wrist_geom" mass="0.332152347" rgba="0.9 0.7 0.4 1" />
+                    <site name="right_palm" pos="-0.00502255186 -0.0507348776 -0.00433987379" size=".012" />
+                    <body name="right_index1" pos="0.0262441449 -0.104099333 -0.00880929828">
+                      <joint name="right_index1_x" axis="1 0 0" range="-1.5 0.15" damping="0.005" armature="0.00002" />
+                      <joint name="right_index1_z" axis="0 0 1" range="-0.35 0.35" damping="0.005" armature="0.00002" />
+                      <site name="right_index1_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                      <geom type="capsule" fromto="0 0 0 0.00252562575 -0.0336446762 0.00265994668" size="0.00700439262" name="right_index1_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                      <body name="right_index2" pos="0.00252562575 -0.0336446762 0.00265994668">
+                        <joint name="right_index2_x" axis="1 0 0" range="-1.5 0.15" damping="0.005" armature="0.00002" />
+                        <site name="right_index2_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                        <geom type="capsule" fromto="0 0 0 -0.000527767465 -0.0232973695 -0.0022893697" size="0.00700439262" name="right_index2_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                        <body name="right_index3" pos="-0.000527767465 -0.0232973695 -0.0022893697">
+                          <joint name="right_index3_x" axis="1 0 0" range="-1.5 0.15" damping="0.005" armature="0.00002" />
+                          <site name="right_index3_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                          <geom type="capsule" fromto="0 0 0 -0.000546801486 -0.0241375938 -0.00237193634" size="0.00700439262" name="right_index3_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                          <site name="right_index3_tip" pos="-0.000546801486 -0.0241375938 -0.00237193634" size=".004" />
+                        </body>
+                      </body>
+                    </body>
+                    <body name="right_middle1" pos="0.000800319016 -0.112728238 -0.00494858623">
+                      <joint name="right_middle1_x" axis="1 0 0" range="-1.5 0.15" damping="0.005" armature="0.00002" />
+                      <joint name="right_middle1_z" axis="0 0 1" range="-0.35 0.35" damping="0.005" armature="0.00002" />
+                      <site name="right_middle1_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                      <geom type="capsule" fromto="0 0 0 -0.00393987447 -0.0317888856 0.00147475302" size="0.00700439262" name="right_middle1_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                      <body name="right_middle2" pos="-0.00393987447 -0.0317888856 0.00147475302">
+                        <joint name="right_middle2_x" axis="1 0 0" range="-1.5 0.15" damping="0.005" armature="0.00002" />
+                        <site name="right_middle2_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                        <geom type="capsule" fromto="0 0 0 -0.00374839082 -0.0241199136 -0.00184616446" size="0.00700439262" name="right_middle2_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                        <body name="right_middle3" pos="-0.00374839082 -0.0241199136 -0.00184616446">
+                          <joint name="right_middle3_x" axis="1 0 0" range="-1.5 0.15" damping="0.005" armature="0.00002" />
+                          <site name="right_middle3_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                          <geom type="capsule" fromto="0 0 0 -0.00406505074 -0.0261575375 -0.0020021263" size="0.00700439262" name="right_middle3_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                          <site name="right_middle3_tip" pos="-0.00406505074 -0.0261575375 -0.0020021263" size=".004" />
+                        </body>
+                      </body>
+                    </body>
+                    <body name="right_pinky1" pos="-0.042461969 -0.087908864 -0.0134482682">
+                      <joint name="right_pinky1_x" axis="1 0 0" range="-1.5 0.15" damping="0.005" armature="0.00002" />
+                      <joint name="right_pinky1_z" axis="0 0 1" range="-0.35 0.35" damping="0.005" armature="0.00002" />
+                      <site name="right_pinky1_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                      <geom type="capsule" fromto="0 0 0 -0.0113886818 -0.0168331265 -0.000601634383" size="0.00700439262" name="right_pinky1_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                      <body name="right_pinky2" pos="-0.0113886818 -0.0168331265 -0.000601634383">
+                        <joint name="right_pinky2_x" axis="1 0 0" range="-1.5 0.15" damping="0.005" armature="0.00002" />
+                        <site name="right_pinky2_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                        <geom type="capsule" fromto="0 0 0 -0.0102782026 -0.0166643262 -0.00158524513" size="0.00700439262" name="right_pinky2_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                        <body name="right_pinky3" pos="-0.0102782026 -0.0166643262 -0.00158524513">
+                          <joint name="right_pinky3_x" axis="1 0 0" range="-1.5 0.15" damping="0.005" armature="0.00002" />
+                          <site name="right_pinky3_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                          <geom type="capsule" fromto="0 0 0 -0.0107252579 -0.0173891485 -0.00165419595" size="0.00700439262" name="right_pinky3_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                          <site name="right_pinky3_tip" pos="-0.0107252579 -0.0173891485 -0.00165419595" size=".004" />
+                        </body>
+                      </body>
+                    </body>
+                    <body name="right_ring1" pos="-0.0247629061 -0.101142168 -0.00751280785">
+                      <joint name="right_ring1_x" axis="1 0 0" range="-1.5 0.15" damping="0.005" armature="0.00002" />
+                      <joint name="right_ring1_z" axis="0 0 1" range="-0.35 0.35" damping="0.005" armature="0.00002" />
+                      <site name="right_ring1_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                      <geom type="capsule" fromto="0 0 0 -0.00462251902 -0.029117167 0.00202178955" size="0.00700439262" name="right_ring1_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                      <body name="right_ring2" pos="-0.00462251902 -0.029117167 0.00202178955">
+                        <joint name="right_ring2_x" axis="1 0 0" range="-1.5 0.15" damping="0.005" armature="0.00002" />
+                        <site name="right_ring2_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                        <geom type="capsule" fromto="0 0 0 -0.00702768564 -0.0235527158 -0.00180637836" size="0.00700439262" name="right_ring2_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                        <body name="right_ring3" pos="-0.00702768564 -0.0235527158 -0.00180637836">
+                          <joint name="right_ring3_x" axis="1 0 0" range="-1.5 0.15" damping="0.005" armature="0.00002" />
+                          <site name="right_ring3_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                          <geom type="capsule" fromto="0 0 0 -0.00699657807 -0.0234484598 -0.00179838249" size="0.00700439262" name="right_ring3_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                          <site name="right_ring3_tip" pos="-0.00699657807 -0.0234484598 -0.00179838249" size=".004" />
+                        </body>
+                      </body>
+                    </body>
+                    <body name="right_thumb1" pos="0.0320934132 -0.0393261909 -0.0220980942">
+                      <joint name="right_thumb1_x" axis="1 0 0" range="-1.2 1.2" damping="0.005" armature="0.00002" />
+                      <joint name="right_thumb1_y" axis="0 1 0" range="-0.8 0.8" damping="0.005" armature="0.00002" />
+                      <joint name="right_thumb1_z" axis="0 0 1" range="-0.8 0.8" damping="0.005" armature="0.00002" />
+                      <site name="right_thumb1_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                      <geom type="capsule" fromto="0 0 0 0.0269877873 -0.0175561905 0.00114572048" size="0.00900564766" name="right_thumb1_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                      <body name="right_thumb2" pos="0.0269877873 -0.0175561905 0.00114572048">
+                        <joint name="right_thumb2_x" axis="1 0 0" range="-1.2 1.2" damping="0.005" armature="0.00002" />
+                        <site name="right_thumb2_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                        <geom type="capsule" fromto="0 0 0 0.0164073575 -0.0218622684 -0.00480346382" size="0.00900564766" name="right_thumb2_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                        <body name="right_thumb3" pos="0.0164073575 -0.0218622684 -0.00480346382">
+                          <joint name="right_thumb3_x" axis="1 0 0" range="-1.2 1.2" damping="0.005" armature="0.00002" />
+                          <site name="right_thumb3_joint_site" size="0.006" rgba="1 0.2 0.2 1" group="3" />
+                          <geom type="capsule" fromto="0 0 0 0.0189402793 -0.0252373051 -0.00554500939" size="0.00900564766" name="right_thumb3_geom" mass="0.0199291408" rgba="0.85 0.6 0.35 1" />
+                          <site name="right_thumb3_tip" pos="0.0189402793 -0.0252373051 -0.00554500939" size=".004" />
+                        </body>
+                      </body>
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+      <site name="imu" size=".01" />
+    </body>
+  </worldbody>
+  <actuator>
+    <motor name="left_hip_x_servo" joint="left_hip_x" ctrlrange="-180 180" forcerange="-180 180" />
+    <motor name="left_hip_y_servo" joint="left_hip_y" ctrlrange="-180 180" forcerange="-180 180" />
+    <motor name="left_hip_z_servo" joint="left_hip_z" ctrlrange="-180 180" forcerange="-180 180" />
+    <motor name="right_hip_x_servo" joint="right_hip_x" ctrlrange="-180 180" forcerange="-180 180" />
+    <motor name="right_hip_y_servo" joint="right_hip_y" ctrlrange="-180 180" forcerange="-180 180" />
+    <motor name="right_hip_z_servo" joint="right_hip_z" ctrlrange="-180 180" forcerange="-180 180" />
+    <motor name="spine1_x_servo" joint="spine1_x" ctrlrange="-120 120" forcerange="-120 120" />
+    <motor name="spine1_y_servo" joint="spine1_y" ctrlrange="-120 120" forcerange="-120 120" />
+    <motor name="spine1_z_servo" joint="spine1_z" ctrlrange="-120 120" forcerange="-120 120" />
+    <motor name="left_knee_y_servo" joint="left_knee_y" ctrlrange="-180 180" forcerange="-180 180" />
+    <motor name="right_knee_y_servo" joint="right_knee_y" ctrlrange="-180 180" forcerange="-180 180" />
+    <motor name="spine2_x_servo" joint="spine2_x" ctrlrange="-120 120" forcerange="-120 120" />
+    <motor name="spine2_y_servo" joint="spine2_y" ctrlrange="-120 120" forcerange="-120 120" />
+    <motor name="spine2_z_servo" joint="spine2_z" ctrlrange="-120 120" forcerange="-120 120" />
+    <motor name="left_ankle_x_servo" joint="left_ankle_x" ctrlrange="-120 120" forcerange="-120 120" />
+    <motor name="left_ankle_y_servo" joint="left_ankle_y" ctrlrange="-120 120" forcerange="-120 120" />
+    <motor name="left_ankle_z_servo" joint="left_ankle_z" ctrlrange="-120 120" forcerange="-120 120" />
+    <motor name="right_ankle_x_servo" joint="right_ankle_x" ctrlrange="-120 120" forcerange="-120 120" />
+    <motor name="right_ankle_y_servo" joint="right_ankle_y" ctrlrange="-120 120" forcerange="-120 120" />
+    <motor name="right_ankle_z_servo" joint="right_ankle_z" ctrlrange="-120 120" forcerange="-120 120" />
+    <motor name="spine3_x_servo" joint="spine3_x" ctrlrange="-120 120" forcerange="-120 120" />
+    <motor name="spine3_y_servo" joint="spine3_y" ctrlrange="-120 120" forcerange="-120 120" />
+    <motor name="spine3_z_servo" joint="spine3_z" ctrlrange="-120 120" forcerange="-120 120" />
+    <motor name="left_foot_y_servo" joint="left_foot_y" ctrlrange="-35 35" forcerange="-35 35" />
+    <motor name="right_foot_y_servo" joint="right_foot_y" ctrlrange="-35 35" forcerange="-35 35" />
+    <motor name="neck_x_servo" joint="neck_x" ctrlrange="-20 20" forcerange="-20 20" />
+    <motor name="neck_y_servo" joint="neck_y" ctrlrange="-20 20" forcerange="-20 20" />
+    <motor name="neck_z_servo" joint="neck_z" ctrlrange="-20 20" forcerange="-20 20" />
+    <motor name="left_collar_x_servo" joint="left_collar_x" ctrlrange="-35 35" forcerange="-35 35" />
+    <motor name="left_collar_y_servo" joint="left_collar_y" ctrlrange="-35 35" forcerange="-35 35" />
+    <motor name="left_collar_z_servo" joint="left_collar_z" ctrlrange="-35 35" forcerange="-35 35" />
+    <motor name="right_collar_x_servo" joint="right_collar_x" ctrlrange="-35 35" forcerange="-35 35" />
+    <motor name="right_collar_y_servo" joint="right_collar_y" ctrlrange="-35 35" forcerange="-35 35" />
+    <motor name="right_collar_z_servo" joint="right_collar_z" ctrlrange="-35 35" forcerange="-35 35" />
+    <motor name="head_x_servo" joint="head_x" ctrlrange="-20 20" forcerange="-20 20" />
+    <motor name="head_y_servo" joint="head_y" ctrlrange="-20 20" forcerange="-20 20" />
+    <motor name="head_z_servo" joint="head_z" ctrlrange="-20 20" forcerange="-20 20" />
+    <motor name="left_shoulder_x_servo" joint="left_shoulder_x" ctrlrange="-80 80" forcerange="-80 80" />
+    <motor name="left_shoulder_y_servo" joint="left_shoulder_y" ctrlrange="-80 80" forcerange="-80 80" />
+    <motor name="left_shoulder_z_servo" joint="left_shoulder_z" ctrlrange="-80 80" forcerange="-80 80" />
+    <motor name="right_shoulder_x_servo" joint="right_shoulder_x" ctrlrange="-80 80" forcerange="-80 80" />
+    <motor name="right_shoulder_y_servo" joint="right_shoulder_y" ctrlrange="-80 80" forcerange="-80 80" />
+    <motor name="right_shoulder_z_servo" joint="right_shoulder_z" ctrlrange="-80 80" forcerange="-80 80" />
+    <motor name="left_elbow_z_servo" joint="left_elbow_z" ctrlrange="-65 65" forcerange="-65 65" />
+    <motor name="right_elbow_z_servo" joint="right_elbow_z" ctrlrange="-65 65" forcerange="-65 65" />
+    <motor name="left_wrist_x_servo" joint="left_wrist_x" ctrlrange="-15 15" forcerange="-15 15" />
+    <motor name="left_wrist_y_servo" joint="left_wrist_y" ctrlrange="-15 15" forcerange="-15 15" />
+    <motor name="left_wrist_z_servo" joint="left_wrist_z" ctrlrange="-15 15" forcerange="-15 15" />
+    <motor name="right_wrist_x_servo" joint="right_wrist_x" ctrlrange="-15 15" forcerange="-15 15" />
+    <motor name="right_wrist_y_servo" joint="right_wrist_y" ctrlrange="-15 15" forcerange="-15 15" />
+    <motor name="right_wrist_z_servo" joint="right_wrist_z" ctrlrange="-15 15" forcerange="-15 15" />
+    <motor name="left_index1_x_servo" joint="left_index1_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="left_index1_z_servo" joint="left_index1_z" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="left_index2_x_servo" joint="left_index2_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="left_index3_x_servo" joint="left_index3_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="left_middle1_x_servo" joint="left_middle1_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="left_middle1_z_servo" joint="left_middle1_z" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="left_middle2_x_servo" joint="left_middle2_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="left_middle3_x_servo" joint="left_middle3_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="left_pinky1_x_servo" joint="left_pinky1_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="left_pinky1_z_servo" joint="left_pinky1_z" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="left_pinky2_x_servo" joint="left_pinky2_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="left_pinky3_x_servo" joint="left_pinky3_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="left_ring1_x_servo" joint="left_ring1_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="left_ring1_z_servo" joint="left_ring1_z" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="left_ring2_x_servo" joint="left_ring2_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="left_ring3_x_servo" joint="left_ring3_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="left_thumb1_x_servo" joint="left_thumb1_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="left_thumb1_y_servo" joint="left_thumb1_y" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="left_thumb1_z_servo" joint="left_thumb1_z" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="left_thumb2_x_servo" joint="left_thumb2_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="left_thumb3_x_servo" joint="left_thumb3_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="right_index1_x_servo" joint="right_index1_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="right_index1_z_servo" joint="right_index1_z" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="right_index2_x_servo" joint="right_index2_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="right_index3_x_servo" joint="right_index3_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="right_middle1_x_servo" joint="right_middle1_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="right_middle1_z_servo" joint="right_middle1_z" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="right_middle2_x_servo" joint="right_middle2_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="right_middle3_x_servo" joint="right_middle3_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="right_pinky1_x_servo" joint="right_pinky1_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="right_pinky1_z_servo" joint="right_pinky1_z" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="right_pinky2_x_servo" joint="right_pinky2_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="right_pinky3_x_servo" joint="right_pinky3_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="right_ring1_x_servo" joint="right_ring1_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="right_ring1_z_servo" joint="right_ring1_z" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="right_ring2_x_servo" joint="right_ring2_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="right_ring3_x_servo" joint="right_ring3_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="right_thumb1_x_servo" joint="right_thumb1_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="right_thumb1_y_servo" joint="right_thumb1_y" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="right_thumb1_z_servo" joint="right_thumb1_z" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="right_thumb2_x_servo" joint="right_thumb2_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+    <motor name="right_thumb3_x_servo" joint="right_thumb3_x" ctrlrange="-1.5 1.5" forcerange="-1.5 1.5" />
+  <motor name="left_forearm_roll_motor" joint="left_forearm_roll" ctrlrange="-8 8" forcerange="-8 8" forcelimited="true" /><motor name="right_forearm_roll_motor" joint="right_forearm_roll" ctrlrange="-8 8" forcerange="-8 8" forcelimited="true" /></actuator>
+  <contact>
+    <exclude body1="pelvis" body2="left_hip" />
+    <exclude body1="pelvis" body2="right_hip" />
+    <exclude body1="pelvis" body2="spine1" />
+    <exclude body1="pelvis" body2="left_knee" />
+    <exclude body1="pelvis" body2="right_knee" />
+    <exclude body1="pelvis" body2="spine2" />
+    <exclude body1="left_hip" body2="right_hip" />
+    <exclude body1="left_hip" body2="spine1" />
+    <exclude body1="left_hip" body2="left_knee" />
+    <exclude body1="left_hip" body2="left_ankle" />
+    <exclude body1="right_hip" body2="spine1" />
+    <exclude body1="right_hip" body2="right_knee" />
+    <exclude body1="right_hip" body2="right_ankle" />
+    <exclude body1="spine1" body2="spine2" />
+    <exclude body1="spine1" body2="spine3" />
+    <exclude body1="left_knee" body2="left_ankle" />
+    <exclude body1="left_knee" body2="left_foot" />
+    <exclude body1="right_knee" body2="right_ankle" />
+    <exclude body1="right_knee" body2="right_foot" />
+    <exclude body1="spine2" body2="spine3" />
+    <exclude body1="spine2" body2="neck" />
+    <exclude body1="spine2" body2="left_collar" />
+    <exclude body1="spine2" body2="right_collar" />
+    <exclude body1="spine2" body2="left_shoulder" />
+    <exclude body1="spine2" body2="right_shoulder" />
+    <exclude body1="left_ankle" body2="left_foot" />
+    <exclude body1="right_ankle" body2="right_foot" />
+    <exclude body1="spine3" body2="neck" />
+    <exclude body1="spine3" body2="left_collar" />
+    <exclude body1="spine3" body2="right_collar" />
+    <exclude body1="spine3" body2="head" />
+    <exclude body1="spine3" body2="left_shoulder" />
+    <exclude body1="spine3" body2="right_shoulder" />
+    <exclude body1="neck" body2="left_collar" />
+    <exclude body1="neck" body2="right_collar" />
+    <exclude body1="neck" body2="head" />
+    <exclude body1="left_collar" body2="right_collar" />
+    <exclude body1="left_collar" body2="left_shoulder" />
+    <exclude body1="left_collar" body2="left_elbow" />
+    <exclude body1="right_collar" body2="right_shoulder" />
+    <exclude body1="right_collar" body2="right_elbow" />
+    <exclude body1="left_shoulder" body2="left_elbow" />
+    <exclude body1="left_shoulder" body2="left_wrist" />
+    <exclude body1="right_shoulder" body2="right_elbow" />
+    <exclude body1="right_shoulder" body2="right_wrist" />
+    <exclude body1="left_elbow" body2="left_wrist" />
+    <exclude body1="left_elbow" body2="left_index1" />
+    <exclude body1="left_elbow" body2="left_middle1" />
+    <exclude body1="left_elbow" body2="left_pinky1" />
+    <exclude body1="left_elbow" body2="left_ring1" />
+    <exclude body1="left_elbow" body2="left_thumb1" />
+    <exclude body1="right_elbow" body2="right_wrist" />
+    <exclude body1="right_elbow" body2="right_index1" />
+    <exclude body1="right_elbow" body2="right_middle1" />
+    <exclude body1="right_elbow" body2="right_pinky1" />
+    <exclude body1="right_elbow" body2="right_ring1" />
+    <exclude body1="right_elbow" body2="right_thumb1" />
+    <exclude body1="left_wrist" body2="left_index1" />
+    <exclude body1="left_wrist" body2="left_index2" />
+    <exclude body1="left_wrist" body2="left_index3" />
+    <exclude body1="left_wrist" body2="left_middle1" />
+    <exclude body1="left_wrist" body2="left_middle2" />
+    <exclude body1="left_wrist" body2="left_middle3" />
+    <exclude body1="left_wrist" body2="left_pinky1" />
+    <exclude body1="left_wrist" body2="left_pinky2" />
+    <exclude body1="left_wrist" body2="left_pinky3" />
+    <exclude body1="left_wrist" body2="left_ring1" />
+    <exclude body1="left_wrist" body2="left_ring2" />
+    <exclude body1="left_wrist" body2="left_ring3" />
+    <exclude body1="left_wrist" body2="left_thumb1" />
+    <exclude body1="left_wrist" body2="left_thumb2" />
+    <exclude body1="left_wrist" body2="left_thumb3" />
+    <exclude body1="right_wrist" body2="right_index1" />
+    <exclude body1="right_wrist" body2="right_index2" />
+    <exclude body1="right_wrist" body2="right_index3" />
+    <exclude body1="right_wrist" body2="right_middle1" />
+    <exclude body1="right_wrist" body2="right_middle2" />
+    <exclude body1="right_wrist" body2="right_middle3" />
+    <exclude body1="right_wrist" body2="right_pinky1" />
+    <exclude body1="right_wrist" body2="right_pinky2" />
+    <exclude body1="right_wrist" body2="right_pinky3" />
+    <exclude body1="right_wrist" body2="right_ring1" />
+    <exclude body1="right_wrist" body2="right_ring2" />
+    <exclude body1="right_wrist" body2="right_ring3" />
+    <exclude body1="right_wrist" body2="right_thumb1" />
+    <exclude body1="right_wrist" body2="right_thumb2" />
+    <exclude body1="right_wrist" body2="right_thumb3" />
+    <exclude body1="left_index1" body2="left_index2" />
+    <exclude body1="left_index1" body2="left_index3" />
+    <exclude body1="left_index1" body2="left_middle1" />
+    <exclude body1="left_index1" body2="left_middle2" />
+    <exclude body1="left_index1" body2="left_middle3" />
+    <exclude body1="left_index1" body2="left_pinky1" />
+    <exclude body1="left_index1" body2="left_pinky2" />
+    <exclude body1="left_index1" body2="left_pinky3" />
+    <exclude body1="left_index1" body2="left_ring1" />
+    <exclude body1="left_index1" body2="left_ring2" />
+    <exclude body1="left_index1" body2="left_ring3" />
+    <exclude body1="left_index1" body2="left_thumb1" />
+    <exclude body1="left_index1" body2="left_thumb2" />
+    <exclude body1="left_index1" body2="left_thumb3" />
+    <exclude body1="left_index2" body2="left_index3" />
+    <exclude body1="left_index2" body2="left_middle1" />
+    <exclude body1="left_index2" body2="left_middle2" />
+    <exclude body1="left_index2" body2="left_middle3" />
+    <exclude body1="left_index2" body2="left_pinky1" />
+    <exclude body1="left_index2" body2="left_pinky2" />
+    <exclude body1="left_index2" body2="left_pinky3" />
+    <exclude body1="left_index2" body2="left_ring1" />
+    <exclude body1="left_index2" body2="left_ring2" />
+    <exclude body1="left_index2" body2="left_ring3" />
+    <exclude body1="left_index2" body2="left_thumb1" />
+    <exclude body1="left_index2" body2="left_thumb2" />
+    <exclude body1="left_index2" body2="left_thumb3" />
+    <exclude body1="left_index3" body2="left_middle1" />
+    <exclude body1="left_index3" body2="left_middle2" />
+    <exclude body1="left_index3" body2="left_middle3" />
+    <exclude body1="left_index3" body2="left_pinky1" />
+    <exclude body1="left_index3" body2="left_pinky2" />
+    <exclude body1="left_index3" body2="left_pinky3" />
+    <exclude body1="left_index3" body2="left_ring1" />
+    <exclude body1="left_index3" body2="left_ring2" />
+    <exclude body1="left_index3" body2="left_ring3" />
+    <exclude body1="left_index3" body2="left_thumb1" />
+    <exclude body1="left_index3" body2="left_thumb2" />
+    <exclude body1="left_index3" body2="left_thumb3" />
+    <exclude body1="left_middle1" body2="left_middle2" />
+    <exclude body1="left_middle1" body2="left_middle3" />
+    <exclude body1="left_middle1" body2="left_pinky1" />
+    <exclude body1="left_middle1" body2="left_pinky2" />
+    <exclude body1="left_middle1" body2="left_pinky3" />
+    <exclude body1="left_middle1" body2="left_ring1" />
+    <exclude body1="left_middle1" body2="left_ring2" />
+    <exclude body1="left_middle1" body2="left_ring3" />
+    <exclude body1="left_middle1" body2="left_thumb1" />
+    <exclude body1="left_middle1" body2="left_thumb2" />
+    <exclude body1="left_middle1" body2="left_thumb3" />
+    <exclude body1="left_middle2" body2="left_middle3" />
+    <exclude body1="left_middle2" body2="left_pinky1" />
+    <exclude body1="left_middle2" body2="left_pinky2" />
+    <exclude body1="left_middle2" body2="left_pinky3" />
+    <exclude body1="left_middle2" body2="left_ring1" />
+    <exclude body1="left_middle2" body2="left_ring2" />
+    <exclude body1="left_middle2" body2="left_ring3" />
+    <exclude body1="left_middle2" body2="left_thumb1" />
+    <exclude body1="left_middle2" body2="left_thumb2" />
+    <exclude body1="left_middle2" body2="left_thumb3" />
+    <exclude body1="left_middle3" body2="left_pinky1" />
+    <exclude body1="left_middle3" body2="left_pinky2" />
+    <exclude body1="left_middle3" body2="left_pinky3" />
+    <exclude body1="left_middle3" body2="left_ring1" />
+    <exclude body1="left_middle3" body2="left_ring2" />
+    <exclude body1="left_middle3" body2="left_ring3" />
+    <exclude body1="left_middle3" body2="left_thumb1" />
+    <exclude body1="left_middle3" body2="left_thumb2" />
+    <exclude body1="left_middle3" body2="left_thumb3" />
+    <exclude body1="left_pinky1" body2="left_pinky2" />
+    <exclude body1="left_pinky1" body2="left_pinky3" />
+    <exclude body1="left_pinky1" body2="left_ring1" />
+    <exclude body1="left_pinky1" body2="left_ring2" />
+    <exclude body1="left_pinky1" body2="left_ring3" />
+    <exclude body1="left_pinky1" body2="left_thumb1" />
+    <exclude body1="left_pinky1" body2="left_thumb2" />
+    <exclude body1="left_pinky1" body2="left_thumb3" />
+    <exclude body1="left_pinky2" body2="left_pinky3" />
+    <exclude body1="left_pinky2" body2="left_ring1" />
+    <exclude body1="left_pinky2" body2="left_ring2" />
+    <exclude body1="left_pinky2" body2="left_ring3" />
+    <exclude body1="left_pinky2" body2="left_thumb1" />
+    <exclude body1="left_pinky2" body2="left_thumb2" />
+    <exclude body1="left_pinky2" body2="left_thumb3" />
+    <exclude body1="left_pinky3" body2="left_ring1" />
+    <exclude body1="left_pinky3" body2="left_ring2" />
+    <exclude body1="left_pinky3" body2="left_ring3" />
+    <exclude body1="left_pinky3" body2="left_thumb1" />
+    <exclude body1="left_pinky3" body2="left_thumb2" />
+    <exclude body1="left_pinky3" body2="left_thumb3" />
+    <exclude body1="left_ring1" body2="left_ring2" />
+    <exclude body1="left_ring1" body2="left_ring3" />
+    <exclude body1="left_ring1" body2="left_thumb1" />
+    <exclude body1="left_ring1" body2="left_thumb2" />
+    <exclude body1="left_ring1" body2="left_thumb3" />
+    <exclude body1="left_ring2" body2="left_ring3" />
+    <exclude body1="left_ring2" body2="left_thumb1" />
+    <exclude body1="left_ring2" body2="left_thumb2" />
+    <exclude body1="left_ring2" body2="left_thumb3" />
+    <exclude body1="left_ring3" body2="left_thumb1" />
+    <exclude body1="left_ring3" body2="left_thumb2" />
+    <exclude body1="left_ring3" body2="left_thumb3" />
+    <exclude body1="left_thumb1" body2="left_thumb2" />
+    <exclude body1="left_thumb1" body2="left_thumb3" />
+    <exclude body1="left_thumb2" body2="left_thumb3" />
+    <exclude body1="right_index1" body2="right_index2" />
+    <exclude body1="right_index1" body2="right_index3" />
+    <exclude body1="right_index1" body2="right_middle1" />
+    <exclude body1="right_index1" body2="right_middle2" />
+    <exclude body1="right_index1" body2="right_middle3" />
+    <exclude body1="right_index1" body2="right_pinky1" />
+    <exclude body1="right_index1" body2="right_pinky2" />
+    <exclude body1="right_index1" body2="right_pinky3" />
+    <exclude body1="right_index1" body2="right_ring1" />
+    <exclude body1="right_index1" body2="right_ring2" />
+    <exclude body1="right_index1" body2="right_ring3" />
+    <exclude body1="right_index1" body2="right_thumb1" />
+    <exclude body1="right_index1" body2="right_thumb2" />
+    <exclude body1="right_index1" body2="right_thumb3" />
+    <exclude body1="right_index2" body2="right_index3" />
+    <exclude body1="right_index2" body2="right_middle1" />
+    <exclude body1="right_index2" body2="right_middle2" />
+    <exclude body1="right_index2" body2="right_middle3" />
+    <exclude body1="right_index2" body2="right_pinky1" />
+    <exclude body1="right_index2" body2="right_pinky2" />
+    <exclude body1="right_index2" body2="right_pinky3" />
+    <exclude body1="right_index2" body2="right_ring1" />
+    <exclude body1="right_index2" body2="right_ring2" />
+    <exclude body1="right_index2" body2="right_ring3" />
+    <exclude body1="right_index2" body2="right_thumb1" />
+    <exclude body1="right_index2" body2="right_thumb2" />
+    <exclude body1="right_index2" body2="right_thumb3" />
+    <exclude body1="right_index3" body2="right_middle1" />
+    <exclude body1="right_index3" body2="right_middle2" />
+    <exclude body1="right_index3" body2="right_middle3" />
+    <exclude body1="right_index3" body2="right_pinky1" />
+    <exclude body1="right_index3" body2="right_pinky2" />
+    <exclude body1="right_index3" body2="right_pinky3" />
+    <exclude body1="right_index3" body2="right_ring1" />
+    <exclude body1="right_index3" body2="right_ring2" />
+    <exclude body1="right_index3" body2="right_ring3" />
+    <exclude body1="right_index3" body2="right_thumb1" />
+    <exclude body1="right_index3" body2="right_thumb2" />
+    <exclude body1="right_index3" body2="right_thumb3" />
+    <exclude body1="right_middle1" body2="right_middle2" />
+    <exclude body1="right_middle1" body2="right_middle3" />
+    <exclude body1="right_middle1" body2="right_pinky1" />
+    <exclude body1="right_middle1" body2="right_pinky2" />
+    <exclude body1="right_middle1" body2="right_pinky3" />
+    <exclude body1="right_middle1" body2="right_ring1" />
+    <exclude body1="right_middle1" body2="right_ring2" />
+    <exclude body1="right_middle1" body2="right_ring3" />
+    <exclude body1="right_middle1" body2="right_thumb1" />
+    <exclude body1="right_middle1" body2="right_thumb2" />
+    <exclude body1="right_middle1" body2="right_thumb3" />
+    <exclude body1="right_middle2" body2="right_middle3" />
+    <exclude body1="right_middle2" body2="right_pinky1" />
+    <exclude body1="right_middle2" body2="right_pinky2" />
+    <exclude body1="right_middle2" body2="right_pinky3" />
+    <exclude body1="right_middle2" body2="right_ring1" />
+    <exclude body1="right_middle2" body2="right_ring2" />
+    <exclude body1="right_middle2" body2="right_ring3" />
+    <exclude body1="right_middle2" body2="right_thumb1" />
+    <exclude body1="right_middle2" body2="right_thumb2" />
+    <exclude body1="right_middle2" body2="right_thumb3" />
+    <exclude body1="right_middle3" body2="right_pinky1" />
+    <exclude body1="right_middle3" body2="right_pinky2" />
+    <exclude body1="right_middle3" body2="right_pinky3" />
+    <exclude body1="right_middle3" body2="right_ring1" />
+    <exclude body1="right_middle3" body2="right_ring2" />
+    <exclude body1="right_middle3" body2="right_ring3" />
+    <exclude body1="right_middle3" body2="right_thumb1" />
+    <exclude body1="right_middle3" body2="right_thumb2" />
+    <exclude body1="right_middle3" body2="right_thumb3" />
+    <exclude body1="right_pinky1" body2="right_pinky2" />
+    <exclude body1="right_pinky1" body2="right_pinky3" />
+    <exclude body1="right_pinky1" body2="right_ring1" />
+    <exclude body1="right_pinky1" body2="right_ring2" />
+    <exclude body1="right_pinky1" body2="right_ring3" />
+    <exclude body1="right_pinky1" body2="right_thumb1" />
+    <exclude body1="right_pinky1" body2="right_thumb2" />
+    <exclude body1="right_pinky1" body2="right_thumb3" />
+    <exclude body1="right_pinky2" body2="right_pinky3" />
+    <exclude body1="right_pinky2" body2="right_ring1" />
+    <exclude body1="right_pinky2" body2="right_ring2" />
+    <exclude body1="right_pinky2" body2="right_ring3" />
+    <exclude body1="right_pinky2" body2="right_thumb1" />
+    <exclude body1="right_pinky2" body2="right_thumb2" />
+    <exclude body1="right_pinky2" body2="right_thumb3" />
+    <exclude body1="right_pinky3" body2="right_ring1" />
+    <exclude body1="right_pinky3" body2="right_ring2" />
+    <exclude body1="right_pinky3" body2="right_ring3" />
+    <exclude body1="right_pinky3" body2="right_thumb1" />
+    <exclude body1="right_pinky3" body2="right_thumb2" />
+    <exclude body1="right_pinky3" body2="right_thumb3" />
+    <exclude body1="right_ring1" body2="right_ring2" />
+    <exclude body1="right_ring1" body2="right_ring3" />
+    <exclude body1="right_ring1" body2="right_thumb1" />
+    <exclude body1="right_ring1" body2="right_thumb2" />
+    <exclude body1="right_ring1" body2="right_thumb3" />
+    <exclude body1="right_ring2" body2="right_ring3" />
+    <exclude body1="right_ring2" body2="right_thumb1" />
+    <exclude body1="right_ring2" body2="right_thumb2" />
+    <exclude body1="right_ring2" body2="right_thumb3" />
+    <exclude body1="right_ring3" body2="right_thumb1" />
+    <exclude body1="right_ring3" body2="right_thumb2" />
+    <exclude body1="right_ring3" body2="right_thumb3" />
+    <exclude body1="right_thumb1" body2="right_thumb2" />
+    <exclude body1="right_thumb1" body2="right_thumb3" />
+    <exclude body1="right_thumb2" body2="right_thumb3" />
+  </contact>
+  <sensor>
+    <gyro name="pelvis_gyro" site="imu" />
+    <accelerometer name="pelvis_accelerometer" site="imu" />
+    <touch name="left_sole_touch" site="left_sole" />
+    <touch name="right_sole_touch" site="right_sole" />
+  </sensor>
+  </mujoco>
