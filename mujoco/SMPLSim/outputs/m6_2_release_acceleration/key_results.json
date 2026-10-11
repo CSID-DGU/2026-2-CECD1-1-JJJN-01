@@ -1,0 +1,132 @@
+{
+  "A_baseline": {
+    "release_speed_m_s": 0.5555760775972154,
+    "forward_m_s": 0.09954287865417771,
+    "lateral_m_s": -0.0034619680326813686,
+    "vertical_m_s": 0.5465747964230399,
+    "release_angle_deg": 79.6722400629306,
+    "first_flight_minimum_rim_distance_m": 4.11487028157504,
+    "minimum_ballistic_speed_m_s": 7.310252027823427,
+    "body_tracking_rmse_rad": 0.02241025614605873,
+    "falls": 0,
+    "warnings": 0,
+    "score": false,
+    "setpoint_elbow_bend_deg": 105.94948964948443,
+    "setpoint_knee_bend_deg": 38.27283666206444,
+    "setpoint_ball_height_m": 1.6481240531159305,
+    "release_time_s": 1.6999999999999735,
+    "velocity_decomposition": {
+      "wrist_velocity_m_s": [
+        0.09764958611404018,
+        0.03327687763964976,
+        0.5311655729234188
+      ],
+      "wrist_omega_rad_s": [
+        0.13308255640115724,
+        -0.0590346986849144,
+        -0.12011829479329372
+      ],
+      "rotation_velocity_m_s": [
+        -0.005160959813939909,
+        -0.03252255064403514,
+        0.010265923724065101
+      ],
+      "wrist_forward_m_s": 0.09869598513510355,
+      "rotation_forward_m_s": -0.006232950631692187,
+      "ball_velocity_m_s": [
+        0.09960291605984155,
+        -0.00017036958594771303,
+        0.5465747964230399
+      ],
+      "velocity_relation_residual_m_s": 0.008827327745968564
+    }
+  },
+  "B_release_1.56": {
+    "release_speed_m_s": 1.6521719553553171,
+    "forward_m_s": 1.6318408283596824,
+    "lateral_m_s": -0.029051660018254672,
+    "vertical_m_s": 0.2567560749255613,
+    "release_angle_deg": 8.940295930721474,
+    "first_flight_minimum_rim_distance_m": 3.260029239148866,
+    "minimum_ballistic_speed_m_s": 7.442001670203007,
+    "body_tracking_rmse_rad": 0.022414993692601207,
+    "falls": 0,
+    "warnings": 0,
+    "score": false,
+    "setpoint_elbow_bend_deg": 105.94948964948443,
+    "setpoint_knee_bend_deg": 38.27283666206444,
+    "setpoint_ball_height_m": 1.6481240531159305,
+    "release_time_s": 1.5599999999999796,
+    "velocity_decomposition": {
+      "wrist_velocity_m_s": [
+        0.5688075435754223,
+        -0.17690501855838137,
+        0.8116542645737038
+      ],
+      "wrist_omega_rad_s": [
+        -0.6755806151213075,
+        6.52023986004635,
+        0.9227132029210486
+      ],
+      "rotation_velocity_m_s": [
+        1.0540357790776993,
+        0.18846867130531525,
+        -0.5600600505007935
+      ],
+      "wrist_forward_m_s": 0.5643943685106191,
+      "rotation_forward_m_s": 1.0582585157024946,
+      "ball_velocity_m_s": [
+        1.6320678380349032,
+        0.010151852220555917,
+        0.2567560749255613
+      ],
+      "velocity_relation_residual_m_s": 0.010664411480111666
+    }
+  },
+  "E_up_0.16_35_0.7": {
+    "release_speed_m_s": 1.817499846616148,
+    "forward_m_s": 1.6697428029141188,
+    "lateral_m_s": -0.006527926457566342,
+    "vertical_m_s": 0.7177896981305802,
+    "release_angle_deg": 23.26176226625746,
+    "first_flight_minimum_rim_distance_m": 2.74782306563253,
+    "minimum_ballistic_speed_m_s": 7.361786500138454,
+    "body_tracking_rmse_rad": 0.023024866845146385,
+    "falls": 0,
+    "warnings": 0,
+    "score": false,
+    "setpoint_elbow_bend_deg": 105.94976702165042,
+    "setpoint_knee_bend_deg": 38.272826975949926,
+    "setpoint_ball_height_m": 1.6481236757693798,
+    "release_time_s": 1.4933333333333159,
+    "velocity_decomposition": {
+      "wrist_velocity_m_s": [
+        1.294115671282706,
+        0.407778107950301,
+        1.120085313703027
+      ],
+      "wrist_omega_rad_s": [
+        1.7788312556594166,
+        2.8629621277023416,
+        -1.2073515649924613
+      ],
+      "rotation_velocity_m_s": [
+        0.35345277220179494,
+        -0.3850053021360924,
+        -0.3921995664876335
+      ],
+      "wrist_forward_m_s": 1.3040881854824613,
+      "rotation_forward_m_s": 0.34352546897893665,
+      "ball_velocity_m_s": [
+        1.6693667835669639,
+        0.036030315438837994,
+        0.7177896981305802
+      ],
+      "velocity_relation_residual_m_s": 0.027438283454341916
+    }
+  },
+  "experiment_count": 43,
+  "recommended": "E_up_0.16_35_0.7",
+  "all_continuous_release_pass": true,
+  "timing_only_joint_targets_identical": true
+}
