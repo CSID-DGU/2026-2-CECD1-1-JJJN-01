@@ -56,8 +56,8 @@ python -c "import torch; print(torch.__version__, torch.cuda.is_available(), tor
 
 팀 드라이브에서 아래 파일을 받아 저장소 루트에서 압축을 풉니다.
 
-- 테스트 데이터: `test_geo_uc.zip` → `data/test_geo_uc/` (드라이브 링크: _여기에 기입_)
-- (선택) 결과 BVH: `save_bvh.zip` → `src/save_bvh/` (드라이브 링크: _여기에 기입_)
+- 테스트 데이터: `test_geo_uc.zip` → `data/test_geo_uc/`
+- (선택) 결과 BVH: `save_bvh.zip` → `src/save_bvh/`
 
 배치 후 확인:
 
