@@ -125,3 +125,17 @@ src/task/evaluation
 src/task/motion_control
 src/task/similar_motion_search
 src/mobu_script
+# ---- team additions ----
+# 테스트 데이터 (드라이브로 공유)
+data/
+
+# 실행 결과 BVH (드라이브로 공유)
+src/save_bvh/
+
+# 백업·로그
+*.bak
+*.log
+
+# Python 캐시
+__pycache__/
+*.pyc
