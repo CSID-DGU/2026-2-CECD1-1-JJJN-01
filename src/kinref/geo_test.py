@@ -135,7 +135,7 @@ def retarget(model, src_batch, tgt_batch, ms_dict, out_rep_cfg, consq_n):
     # src ground truth
     src_motion_list, src_contact_list = gt_recon_motion(src_batch, consq_n)
     # predicted result
-    z, hatD = model(src_batch, tgt_batch, ms_dict, out_rep_cfg, consq_n)
+    _, _, hatD = model(src_batch, tgt_batch, ms_dict, out_rep_cfg, consq_n)
     out_motion_list, out_contact_list = hatD_recon_motion(
         hatD, tgt_batch, out_rep_cfg, ms_dict, consq_n
     )
@@ -216,7 +216,7 @@ if __name__ == "__main__":
             split_chunk = False
 
             try:
-                with torch.inference_mode():
+                with torch.enable_grad():
                     retarget_chunks.append(
                         retarget_frame_chunk(mi, src_ri, tgt_ri, frame_start, frame_end)
                     )
@@ -243,7 +243,7 @@ if __name__ == "__main__":
             clear_cuda_cache()
             for frame in range(frame_start, frame_end):
                 try:
-                    with torch.inference_mode():
+                    with torch.enable_grad():
                         retarget_chunks.append(
                             retarget_frame_chunk(mi, src_ri, tgt_ri, frame, frame + 1)
                         )
@@ -266,7 +266,7 @@ if __name__ == "__main__":
             (src_batch, tgt_batch), consq_n = get_mi_src_tgt_all_graph(
                 dataset=ds, mi=mi, src_ri=src_ri, tgt_ri=tgt_ri, device=args.device
             )
-            with torch.inference_mode():
+            with torch.enable_grad():
                 return retarget(
                     model,
                     src_batch,
@@ -304,7 +304,7 @@ if __name__ == "__main__":
                 tgt_bvh_path = ds.filepaths[tgt_fi]
                 # assert src_bvh_path == tgt_bvh_path, f"Source and target BVH paths do not match: {src_bvh_path} vs {tgt_bvh_path}"
 
-                retarget_result = run_retarget_with_oom_fallback(mi, src_ri, tgt_ri)
+                retarget_result = retarget_frame_wise(mi, src_ri, tgt_ri)
                 if retarget_result is None:
                     continue
                 src_motion, tgt_motion, out_motion = retarget_result
