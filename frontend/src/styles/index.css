@@ -1,0 +1,96 @@
+@import 'tailwindcss';
+
+/*
+  디자인 토큰.
+  Tailwind v4 는 @theme 안의 변수를 유틸리티로 바로 노출한다.
+  예) --color-ink → text-ink / bg-ink, --radius-card → rounded-card
+*/
+@theme {
+  --font-sans:
+    'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo',
+    'Noto Sans KR', sans-serif;
+
+  /* 바탕 */
+  --color-page: #f4f6f8;
+  --color-surface: #ffffff;
+  --color-line: #e4e8ec;
+
+  /* 글자 */
+  --color-ink: #15202b;
+  --color-ink-muted: #5f6b7a;
+  --color-ink-faint: #9aa5b1;
+
+  /* 비교 대상 두 색. 뷰어·타임라인·범례에서 항상 같은 의미로 쓴다. */
+  --color-coach: #2f5bea;
+  --color-coach-soft: #e8edfd;
+  --color-me: #f2653a;
+  --color-me-soft: #fdebe4;
+
+  /* 판정 */
+  --color-good: #1e9e63;
+  --color-good-soft: #e3f5ec;
+  --color-bad: #d64545;
+  --color-bad-soft: #fbe7e7;
+  --color-warn: #d9830f;
+  --color-warn-soft: #fdf1df;
+
+  /* 타이밍 (PDF 와 같은 규칙: 빠름=빨강, 느림=파랑) */
+  --color-fast: #d64545;
+  --color-slow: #2f5bea;
+
+  --radius-card: 20px;
+  --radius-control: 14px;
+}
+
+@layer base {
+  html {
+    background-color: var(--color-page);
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-feature-settings: 'tnum' 1;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-coach);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* 노치·홈바 영역 여백 */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
