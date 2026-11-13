@@ -3,8 +3,11 @@
 종합설계 팀 프로젝트 — 리타겟팅 기반 자세 비교 코칭 서비스. 모노레포.
 
 - `frontend/` — 사용자 웹 (React). 자세한 규칙은 `frontend/CLAUDE.md`, `frontend/README.md`
-- `docs/backend-api-guide.md` — 백엔드가 만들어야 할 API 2개와 결과 JSON 형식. 백엔드 팀에게 전달용 (API 초심자 기준으로 씀)
-- 백엔드(스켈레톤 추출 · 리타겟팅 · CP-DTW 스코어링 · LLM 피드백)는 추후 별도 폴더로 추가 예정
+- `backend/` — FastAPI 분석 서버 (업로드 · 작업 큐 · 결과 변환 · Gemini 피드백). `backend/README.md`
+- `engine/` — 분석 엔진. PAN 리타게팅 원본 코드(수정 5건) + `pipeline/` (영상→스켈레톤(WHAM/MediaPipe)→IK→PAN→`motion_scoring`). `engine/pipeline/README.md`
+- `docs/backend-api-guide.md` — API 2개와 결과 JSON 형식 (프론트 ↔ 백엔드 계약)
+- 저장소 루트의 `.venv`, `.venv-pose`, `.venv-wham`, `third_party/WHAM` 과 `engine/` 안의 가중치 · 데이터 · `runs/` 는 git 에 없다.
+  만드는 법은 `backend/README.md` "환경 구성", `scripts/setup_venvs.sh`. 서버는 `backend/` 에서 `../.venv/bin/uvicorn app.main:app` 으로 띄운다.
 
 ## 서비스 한 줄 설명
 
