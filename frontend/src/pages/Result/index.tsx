@@ -17,7 +17,7 @@ import { SegmentDetail } from './components/SegmentDetail';
 import { SegmentTimeline } from './components/SegmentTimeline';
 import { FrameControls } from './components/SkeletonViewer/FrameControls';
 import { SkeletonViewer, type ViewerLayout } from './components/SkeletonViewer';
-
+//example을 보여주기 위한 코드(주석) 추가
 /**
  * 4단계: 결과.
  * 점수 → 3D 뷰어(나 vs 리타겟팅된 코치) → 구간 타임라인 → 구간 상세 → 피드백.
