@@ -1,0 +1,17 @@
+# Code only is committed. The data below is copied by hand (see pipeline/README.md).
+__pycache__/
+*.pyc
+*.bak
+
+# PAN pretrained weights (~100 MB)
+/pretrained_mixamo/
+
+# Mixamo character data: std_bvhs, mean_var and the per-character BVH clips (~400 MB)
+/data_preprocess/Mixamo/Mixamo/
+
+# Pipeline outputs, including the pre-computed coach runs the backend serves (runs/video_wham/squat_diag_gframe)
+/runs/
+
+# Test / coach videos and the MediaPipe model file
+/pipeline/data/
+/tools/pose_estimation/models/

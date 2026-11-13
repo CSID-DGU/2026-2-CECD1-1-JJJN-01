@@ -1,0 +1,11 @@
+# Python virtual environments (recreate from backend/requirements.txt, engine/requirements-*.txt)
+.venv/
+.venv-pose/
+.venv-wham/
+
+# External checkouts with checkpoints (WHAM 7 GB, PAN training data) — set up by hand, see engine/pipeline/README.md
+third_party/
+
+__pycache__/
+*.pyc
+.DS_Store
