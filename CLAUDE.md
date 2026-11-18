@@ -5,7 +5,7 @@
 - `frontend/` — 사용자 웹 (React). 자세한 규칙은 `frontend/CLAUDE.md`, `frontend/README.md`
 - `backend/` — FastAPI 분석 서버 (업로드 · 작업 큐 · 결과 변환 · Gemini 피드백). `backend/README.md`
 - `engine/` — 분석 엔진. PAN 리타게팅 원본 코드(수정 5건) + `pipeline/` (영상→스켈레톤(WHAM/MediaPipe)→IK→PAN→`motion_scoring`). `engine/pipeline/README.md`
-- `docs/backend-api-guide.md` — API 2개와 결과 JSON 형식 (프론트 ↔ 백엔드 계약)
+- 프론트 ↔ 백엔드 계약: `frontend/src/types/analysis.ts` (타입), `backend/verification/tests/test_api.py` 의 `check_result` (백엔드가 실제로 보장하는 응답 형식)
 - 저장소 루트의 `.venv`, `.venv-pose`, `.venv-wham`, `third_party/WHAM` 과 `engine/` 안의 가중치 · 데이터 · `runs/` 는 git 에 없다.
   만드는 법은 `backend/README.md` "환경 구성", `scripts/setup_venvs.sh`. 서버는 `backend/` 에서 `../.venv/bin/uvicorn app.main:app` 으로 띄운다.
 
