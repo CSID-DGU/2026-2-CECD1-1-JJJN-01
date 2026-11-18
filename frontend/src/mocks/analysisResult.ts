@@ -79,7 +79,7 @@ function solveKnee(hipX: number, hipY: number): [number, number] {
   const k2: [number, number] = [mx - h * uy, my + h * ux];
   return k1[0] >= k2[0] ? k1 : k2;
 }
-
+// 골반 높이·앞뒤 위치, 상체 기울기, 무릎 앞으로 나감 정도를 받아서 관절 좌표를 만든다.
 function poseAt(depth: number, spec: MotionSpec): Vec3[] {
   const hipY = HIP_TOP + (HIP_BOTTOM - HIP_TOP) * depth;
   const hipX = -0.12 * depth + 0.06 * spec.kneeForward * depth;
