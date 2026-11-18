@@ -75,6 +75,7 @@ export type Vec3 = [number, number, number];
 /**
  * 한 사람의 관절 시퀀스.
  * frames[t][j] = t 번째 프레임의 j 번째 관절 위치.
+ * fps: 1초당 프레임 수. frames.length / fps = 영상 길이(초).
  * jointNames[j] 로 관절 이름을 알 수 있고, 뼈 연결은 프론트(utils/skeleton.ts)가
  * 이름 기준으로 만든다. 관절 개수·순서가 바뀌어도 이름만 맞으면 그려진다.
  * TODO(backend): 관절 세트 확정 (MediaPipe 33 / COCO 17 / SMPL 24 …)
