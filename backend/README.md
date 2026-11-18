@@ -1,7 +1,7 @@
 # backend — 분석 API 서버
 
-프론트(`frontend/`)와 붙는 HTTP API. 계약은 `frontend/src/types/analysis.ts`,
-설명은 `docs/backend-api-guide.md`. 분석 엔진은 `engine/pipeline/` (같은 저장소).
+프론트(`frontend/`)와 붙는 HTTP API. 계약은 `frontend/src/types/analysis.ts`.
+분석 엔진은 `engine/pipeline/` (같은 저장소).
 
 ## 환경 구성 (처음 한 번)
 
@@ -13,7 +13,7 @@
 | `.venv-pose` | MediaPipe 추출기 | `bash scripts/setup_venvs.sh pose` |
 | `.venv-wham` | WHAM 추출기 (자체 torch, 약 11GB) | `third_party/WHAM` 을 먼저 둔 뒤 `bash scripts/setup_venvs.sh wham` |
 | `third_party/WHAM` | WHAM 코드 + 체크포인트(6GB) + SMPL 모델 | 기존 서버에서 통째로 복사 (`checkpoints/`, `dataset/body_models/` 포함) |
-| `third_party/pan-motion-retargeting/data_preprocess/Mixamo/Mixamo/*.npy` | PAN 학습 데이터 (150MB). priors 재생성 · `engine/tests` · `pipeline.harness` 에만 쓰임, 서버 실행에는 불필요 | 기존 서버에서 복사 (`PAN_TRAIN_NPY_DIR` 로 위치 변경 가능) |
+| `third_party/pan-motion-retargeting/data_preprocess/Mixamo/Mixamo/*.npy` | PAN 학습 데이터 (150MB). priors 재생성 · `engine/tests` · `pipeline.validation.harness` 에만 쓰임, 서버 실행에는 불필요 | 기존 서버에서 복사 (`PAN_TRAIN_NPY_DIR` 로 위치 변경 가능) |
 | `engine/pretrained_mixamo`, `engine/data_preprocess/Mixamo/Mixamo`, `engine/runs`, `engine/pipeline/data` | PAN 가중치 · Mixamo 데이터 · 코치 사전계산 결과 · 테스트 영상 | 기존 서버에서 복사 |
 | `backend/.env` | `GEMINI_API_KEY=...` | 직접 작성 |
 
@@ -32,21 +32,21 @@ cd backend
 
 테스트 (브라우저 없이 계약 검사):
 ```bash
-../.venv/bin/python tests/test_api.py
+../.venv/bin/python verification/tests/test_api.py
 ```
 
 ## 현재 단계: 2단계 (실제 분석)
 
 - `POST /analysis` 는 업로드를 검사·저장하고 `jobId` 를 바로 돌려준다 (202).
   검사: 종목(지금은 스쿼트만), `coachId` / `coachVideo` 중 하나, 형식(mp4/mov/webm), 100MB, 30초, ffprobe 로 읽히는지.
-- 워커 1개가 작업을 순서대로 하나씩 실제로 분석한다 (`app/pipeline_runner.py`).
+- 워커 1개가 작업을 순서대로 하나씩 실제로 분석한다 (`app/jobs/pipeline_runner.py`).
 
   | status | 하는 일 | 시간 (사용자 영상 1개) |
   |---|---|---|
-  | `extracting` | ffmpeg 정규화(H.264 · 30fps · 회전 적용 · 긴 변 1920) → `pipeline.run_video` (WHAM → IK) | 2–3분 (30초 영상이면 5분 이상) |
-  | `retargeting` | `pipeline.coach_to_user` (PAN) | 약 10초 |
+  | `extracting` | ffmpeg 정규화(H.264 · 30fps · 회전 적용 · 긴 변 1920) → `pipeline.skeleton_extract.run_video` (WHAM → IK) | 2–3분 (30초 영상이면 5분 이상) |
+  | `retargeting` | `pipeline.retarget.coach_to_user` (PAN) | 약 10초 |
   | `scoring` | motion_scoring + 결과 변환 | 1초 미만 |
-  | `llm` | Gemini 로 한국어 피드백 생성 (`app/feedback.py`) | 5–10초 (과부하 시 대체 모델로 최대 90초) |
+  | `llm` | Gemini 로 한국어 피드백 생성 (`app/result/llm/feedback.py`) | 5–10초 (과부하 시 대체 모델로 최대 90초) |
 
   코치 영상을 직접 올리면 코치도 같은 추출을 거쳐 `extracting` 이 두 배가 된다.
   `progress` 는 단계 표시(`[S0]`, `[S1]` …)로 대략 올린다.
@@ -56,15 +56,15 @@ cd backend
 - 작업 폴더 `data/jobs/<jobId>/`: `upload_user.*`(원본), `user.mp4`(정규화), `user_run/`(run_video),
   `retarget/`(coach_to_user), `logs/*.log`, `job.json`, `result.json`, 실패 시 `error.log`.
 - 작업 기록은 메모리에 있어서 서버를 재시작하면 진행 중이던 작업 조회는 404 가 된다.
-- 요청 · 응답 기록 (`app/api_log.py`): `data/api.log`(모든 요청, 거절 포함, JSON 한 줄씩),
+- 요청 · 응답 기록 (`app/debug/api_log.py`): `data/api.log`(모든 요청, 거절 포함, JSON 한 줄씩),
   `data/jobs/<jobId>/logs/api.log`(그 작업의 POST · 상태 변화), `data/jobs/<jobId>/api_response.json`(완료 시 프론트가 받은 응답 원본).
   POST 는 받은 항목과 파일 정보(이름 · 형식 · 크기 · 길이)만 남기고 영상은 남기지 않는다. GET 은 상태가 바뀔 때만 남긴다.
-  서버 콘솔에도 한 줄 요약이 찍힌다. 테스트(`tests/test_api.py`)가 남긴 줄은 client 가 `testclient`.
+  서버 콘솔에도 한 줄 요약이 찍힌다. 테스트(`verification/tests/test_api.py`)가 남긴 줄은 client 가 `testclient`.
 
 테스트:
 ```bash
-../.venv/bin/python tests/test_api.py            # 계약 · 거부 케이스 (demo, 몇 초)
-../.venv/bin/python tests/test_pipeline_e2e.py   # 실제 분석: child_squat 성공 + 사람 없는 영상 실패 (약 4분)
+../.venv/bin/python verification/tests/test_api.py            # 계약 · 거부 케이스 (demo, 몇 초)
+../.venv/bin/python verification/tests/test_pipeline_e2e.py   # 실제 분석: child_squat 성공 + 사람 없는 영상 실패 (약 4분)
 ```
 
 ## LLM 피드백 (`llm` 단계)
@@ -87,12 +87,15 @@ cd backend
 | 파일 | 역할 |
 |---|---|
 | `app/main.py` | 엔드포인트, CORS(전체 허용), 업로드 검사, 오류 → `{ "message" }` |
-| `app/jobs.py` | 작업 레코드, GPU 워커 1개(순서대로 1건씩), demo 러너 |
-| `app/pipeline_runner.py` | 실제 분석 러너: 정규화 → 추출 → 리타겟팅 → 채점, 실패 → 사용자 문장 |
-| `app/result_builder.py` | 파이프라인 결과 → `AnalysisResult` JSON |
-| `app/pose_metrics.py` | 관절 각도 · 반복별 최저점 · 뼈 차이 방향 (`poseMetrics`, `deviations[].direction`) |
-| `app/feedback.py` | LLM 피드백: 입력 요약, 프롬프트, Gemini 호출(모델 대체), 출력 검증 |
-| `app/config.py` | 경로, 업로드 제한, 코치 영상 목록(`COACHES`), 점수 기본값 |
+| `app/jobs/job_queue.py` | 작업 레코드, GPU 워커 1개(순서대로 1건씩) |
+| `app/jobs/pipeline_runner.py` | 실제 분석 러너: 정규화 → 추출 → 리타겟팅 → 채점, 실패 → 사용자 문장 |
+| `app/result/result_builder.py` | 파이프라인 결과 → `AnalysisResult` JSON |
+| `app/result/pose_metrics.py` | 관절 각도 · 반복별 최저점 · 뼈 차이 방향 (`poseMetrics`, `deviations[].direction`) |
+| `app/result/frame_map.py` | 사용자 프레임마다 그릴 코치 프레임과 상태 (`frameMap`) |
+| `app/result/llm/feedback.py` | LLM 피드백: 입력 요약, 프롬프트, Gemini 호출(모델 대체), 출력 검증 |
+| `app/debug/api_log.py` | 요청 · 응답 기록 (개발 · 디버깅용) |
+| `app/debug/demo_runner.py` | demo 러너 (`ANALYSIS_RUNNER=demo`, 분석 없이 기존 결과 반환) |
+| `app/constants.py` | 경로, 업로드 제한, 코치 영상 목록(`COACHES`), 점수 기본값 |
 
 ## 결과 변환 규칙 (`result_builder.py`)
 
@@ -101,15 +104,15 @@ cd backend
 - `segments`: motion_scoring 구간 그대로. `structure` → `verdict` (`substitution` → `substitute`),
   `timing` 은 motion_scoring 값 그대로(비율은 전체 템포 대비 상대값, 판정 없으면 `ok`, 1.0),
   `pose.worst` → `deviations` (뼈 이름을 프론트 이름으로). `angleDiffDeg` 는 뼈 방향 사이 각도(항상 0 이상)이고,
-  `direction` / `components` 가 어느 쪽으로 다른지를 붙인다 (`app/pose_metrics.py`, 아래).
+  `direction` / `components` 가 어느 쪽으로 다른지를 붙인다 (`app/result/pose_metrics.py`, 아래).
 - `label`: 스쿼트 기준. 구간 동안 골반 높이 변화로 하강 / 상승 / 하강 · 상승 / 바닥 유지 /
   시작 자세 / 마무리 자세 / 선 자세 유지.
 - `alignment`: motion_scoring DTW 경로(drop 제외) → `[사용자 프레임, 코치 프레임]`.
-- `frameMap` (`app/frame_map.py`): 사용자 프레임마다 그릴 코치 프레임(소수)과 상태(together · coachAhead · coachWaits ·
+- `frameMap` (`app/result/frame_map.py`): 사용자 프레임마다 그릴 코치 프레임(소수)과 상태(together · coachAhead · coachWaits ·
   userOnly · outside). 짝이 여러 개면 범위의 가운데, 정렬 범위 밖은 클립 처음 · 끝과 직선으로 잇고, 9프레임 이동 평균으로
   건너뜀을 나눈다(항상 앞으로만 진행). 프론트는 있으면 이것을 쓰고 소수 프레임은 두 프레임을 섞어 그린다.
 - 좌우 반전으로 채점된 경우(`mirrored`) 코치를 좌우 반전해서 보내고, 뼈 이름을 사용자 기준 좌우로 바꾼다.
-- `poseMetrics` (`app/pose_metrics.py`, 채점 모듈은 그대로): 같은 SMPL-22 골격에서 직접 잰 관절 측정.
+- `poseMetrics` (`app/result/pose_metrics.py`, 채점 모듈은 그대로): 같은 SMPL-22 골격에서 직접 잰 관절 측정.
   - 몸 기준 좌표: x = 사람의 오른쪽(엉덩이 축), y = 위, z = 앞(발끝 방향).
   - 값: 무릎 굽힘 · 엉덩이 굽힘(좌우), 상체 숙임, 엉덩이 − 무릎 높이(cm), 골반 내려간 거리(cm), 무릎 간격 ÷ 발목 간격.
   - `reps`: 골반 높이 최저점(반복마다)을 DTW 정렬로 코치 최저점과 짝지음. 짝이 없으면 한쪽 null (반복 수 차이).
@@ -119,7 +122,7 @@ cd backend
   - 코치가 사용자 체형으로 리타겟팅된 골격이라 cm 를 그대로 비교한다. `mirrored` 면 코치 좌우를 바꿔 맞춘다.
 - `deviations[].direction`: 구간의 정렬된 프레임 쌍에서 (사용자 뼈 − 코치 뼈) 평균을 몸 기준 위 · 앞 · 바깥쪽 성분으로 나누고,
   제곱합이 `angleDiffDeg` 가 되도록 맞춘 값(`components`)의 가장 큰 성분.
-- `score.total`: 산식 미정 → `config.DEFAULT_SCORE_TOTAL` (0). `feedback`: `llm` 단계 결과(실패 시 없음).
+- `score.total`: 산식 미정 → `constants.DEFAULT_SCORE_TOTAL` (0). `feedback`: `llm` 단계 결과(실패 시 없음).
 
 ## 다음 단계
 

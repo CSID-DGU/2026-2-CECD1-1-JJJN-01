@@ -4,7 +4,7 @@
 #   bash scripts/setup_venvs.sh            # all three
 #   bash scripts/setup_venvs.sh wham       # one of: backend | pose | wham
 #
-# Layout (defaults in backend/app/config.py and engine/pipeline/core/paths.py; env vars override):
+# Layout (defaults in backend/app/constants.py and engine/pipeline/common/paths.py; env vars override):
 #   .venv        backend API + engine (PAN, IK, scoring). --system-site-packages: torch 2.8.0+cu128 comes
 #                from the RunPod image, so this venv stays small. Requires a host with that torch installed.
 #   .venv-pose   MediaPipe extractor (CPU).                engine/requirements-pose.txt

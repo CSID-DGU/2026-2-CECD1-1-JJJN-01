@@ -2,13 +2,13 @@
 
   ../.venv-wham/bin/python tools/pose_estimation/wham_extract.py VIDEO OUT.npz     # from engine/
 
-WHAM checkout: $WHAM_DIR, default <repo>/third_party/WHAM (same rule as pipeline/core/paths.py;
+WHAM checkout: $WHAM_DIR, default <repo>/third_party/WHAM (same rule as pipeline/common/paths.py;
 this script runs in the WHAM venv and does not import the pipeline package).
 
 Static camera assumed (DPVO not installed): WHAM then predicts the world trajectory from
 the image evidence with an identity camera motion.
 
-Output contract (consumed by pipeline/core/wham_format.py):
+Output contract (consumed by pipeline/skeleton_extract/to_mixamo_format/wham_format.py):
   joints      (T, 24, 3) float32  SMPL joints, world frame, metres, Y up
   rest_joints (24, 3)    float32  SMPL joints of the subject's body (betas) in the zero pose
   pose_world  (T, 72), trans_world (T, 3), betas (10,)

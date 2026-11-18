@@ -2,7 +2,7 @@
 
   ../.venv-pose/bin/python tools/pose_estimation/mediapipe_extract.py VIDEO OUT.npz     # from engine/
 
-Output contract (consumed by pipeline/core/mediapipe_format.py):
+Output contract (consumed by pipeline/skeleton_extract/to_mixamo_format/mediapipe_format.py):
   world       (T, 33, 3) float32  metric world landmarks, metres, origin at hip centre,
                                   MediaPipe axes (x right, y down, z away from camera)
   image       (T, 33, 3) float32  normalised image landmarks (x, y in [0,1], z relative)

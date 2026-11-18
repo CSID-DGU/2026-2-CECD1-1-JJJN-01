@@ -3,14 +3,14 @@
 ## 실행 방법
 
 환경(`.venv`, `.venv-pose`, `.venv-wham`, `third_party/WHAM`)은 `backend/README.md` 의 "환경 구성" 과
-`scripts/setup_venvs.sh` 를 따른다. 외부 경로는 `pipeline/core/paths.py` 에 모여 있고 환경변수로 바꿀 수 있다.
+`scripts/setup_venvs.sh` 를 따른다. 외부 경로는 `pipeline/common/paths.py` 에 모여 있고 환경변수로 바꿀 수 있다.
 
 ```bash
 cd engine
 source ../.venv/bin/activate
 
 # 실제 영상: 코치 → 사용자 체형 리타게팅 → 채점 (한 번에)
-python -m pipeline.score_user --coach pipeline/data/squat_diag.mp4 --user pipeline/data/child_squat.mp4 --name coach_to_child
+python -m pipeline.validation.score_user --coach pipeline/data/squat_diag.mp4 --user pipeline/data/child_squat.mp4 --name coach_to_child
 ```
 
 - `--coach`, `--user`: 영상 파일 또는 이미 처리된 run 폴더(`runs/video_wham/<이름>`).
@@ -26,19 +26,19 @@ python -m pipeline.score_user --coach pipeline/data/squat_diag.mp4 --user pipeli
   `--ground clip`(점프 등 발이 뜨는 동작), `--no-mirror`, `--no-viz`
 - 단계별 실행
   ```bash
-  python -m pipeline.run_video pipeline/data/child_squat.mp4 --estimator wham --ground frame      # 영상 → 골격
-  python -m pipeline.coach_to_user --coach runs/video_wham/squat_diag_gframe --user runs/video_wham/child_squat --name coach_to_child
+  python -m pipeline.skeleton_extract.run_video pipeline/data/child_squat.mp4 --estimator wham --ground frame      # 영상 → 골격
+  python -m pipeline.retarget.coach_to_user --coach runs/video_wham/squat_diag_gframe --user runs/video_wham/child_squat --name coach_to_child
   python -m pipeline.bvh_to_npz runs/coach_user/coach_to_child/user.bvh user.npz                   # BVH → 채점 입력
   ```
 - 검증용 (실제 영상 아님, Mixamo 정답 데이터로 IK/PAN 정확도 측정)
   ```bash
   python tests/test_pipeline_core.py                                       # consistency checks
-  python -m pipeline.harness --name <폴더이름> --max-clips 5 --levels L0 L1 --presets full   # → runs/harness/<폴더이름>/
+  python -m pipeline.validation.harness --name <폴더이름> --max-clips 5 --levels L0 L1 --presets full   # → runs/harness/<폴더이름>/
   ```
 
 Wraps the official PAN code without modifying it.
 
-## Modules (`pipeline/core`)
+## Modules (`pipeline/common`)
 | file | role |
 |---|---|
 | `paths.py` | repo / data locations; `PAN_TRAIN_NPY_DIR` env overrides the training npy dir |
@@ -53,7 +53,7 @@ Wraps the official PAN code without modifying it.
 * `Hips` rotation is constant (identity) → pinned in `limits`/`full`
 * knees/elbows: one dominant axis, off-axis median ≈ 8° (knee) / 3° (elbow) → soft limits, not hard hinges
 
-## Harness (`pipeline/harness.py`)
+## Harness (`pipeline/validation/harness.py`)
 Test motions (none in the training npy) give paired ground truth: `BigVegas/X.bvh` → `<target>/X.bvh`.
 Observation levels: `L0` exact positions; `L0b` exact positions of a perturbed body (IK on the
 person's own estimated skeleton); `L1` = `L0b` + noise (extra along the camera depth axis) + unobserved spine.
@@ -89,13 +89,13 @@ moving/jumping clips (38) median 1.00 — the foot-contact root reconstruction a
 foot on the ground and no foot sliding. `Standing To Crouch`: 0.51 (diag) / 0.58 (side) vs 0.26.
 
 ## Real video
-`python -m pipeline.run_video VIDEO [--targets ...]` → `runs/video/<name>/`.
+`python -m pipeline.skeleton_extract.run_video VIDEO [--targets ...]` → `runs/video/<name>/`.
 Known gap found on a real image (not visible in synthetic L2): MediaPipe hip landmarks are
-~20 cm apart vs ~37 cm Mixamo hip joints → hip width is now measured (`core/person.py`).
+~20 cm apart vs ~37 cm Mixamo hip joints → hip width is now measured (`common/person.py`).
 
 ## First real video: `pipeline/data/squat_side.mp4` (pure side view, 96 frames)
-`python -m pipeline.run_video pipeline/data/squat_side.mp4 --name squat_side` then
-`python -m pipeline.viz runs/video/squat_side --targets Abe_m Mousey_m Vampire_m`.
+`python -m pipeline.skeleton_extract.run_video pipeline/data/squat_side.mp4 --name squat_side` then
+`python -m pipeline.skeleton_extract.viz runs/video/squat_side --targets Abe_m Mousey_m Vampire_m`.
 Fixes found on it (none visible in synthetic L2): shoulder width (BigVegas arm joints are
 81 cm apart) now measured like hip width; occluded landmarks keep MediaPipe's estimate with a
 low weight instead of being gap-filled from distant frames; toe weight 0.25.
@@ -108,7 +108,7 @@ Setup: `.venv-wham` (repo root) (torch 2.8 cu128, mmcv 1.7.2, ViTPose/mmpose 0.2
 mmcv upper-bound check relaxed), WHAM in `third_party/WHAM` (repo root, or $WHAM_DIR), SMPL neutral model
 supplied by the user, no DPVO (static camera). `tools/pose_estimation/wham_extract.py` allow-lists
 the numpy types in WHAM's checkpoints for torch>=2.6's weights-only loader.
-Mapping in `pipeline/core/wham_format.py`; S1 = resample + face +Z + `ground_align` (WHAM gives the trajectory).
+Mapping in `pipeline/skeleton_extract/to_mixamo_format/wham_format.py`; S1 = resample + face +Z + `ground_align` (WHAM gives the trajectory).
 
 | video | estimator | IK fit | PAN-input |z|>4 | source knee min R/L | target toe min | target foot slide |
 |---|---|---|---|---|---|---|
@@ -124,7 +124,7 @@ PAN's training mean: the rest-pose geometry mismatch predicted earlier, now meas
 more joints are observed. Default therefore skips LeftShoulder, RightShoulder, Spine2, Neck.
 
 ## Coach → user (same topology, PAN group-A decoder)
-`python -m pipeline.coach_to_user --coach runs/video_wham/squat_diag --user runs/video_wham/<user>`
+`python -m pipeline.retarget.coach_to_user --coach runs/video_wham/squat_diag --user runs/video_wham/<user>`
 (or `--user-scale legs=1.15 arms=0.9` for a synthetic user) → `runs/coach_user/<name>/`
 (`coach_on_user_pan.bvh` main output, `coach_on_user_copy.bvh` baseline, `user.bvh`, `comparison.html`).
 Coach and user both come from `run_video`; the user's body = BigVegas topology + measured bone
@@ -133,7 +133,7 @@ BigVegas scale and decodes with the user's offsets via `static_encoder`. A user 
 BigVegas stats are used, root channels scaled by the **leg ratio** (rest hip height) — on Aj/Kaya/
 SportyGranny it matches the real root stats, total height does not (Kaya 0.73 vs 0.88).
 
-`python -m pipeline.intra_check --name v1`: BigVegas test clips (GT rotations) → Aj, Kaya,
+`python -m pipeline.validation.intra_check --name v1`: BigVegas test clips (GT rotations) → Aj, Kaya,
 SportyGranny with paired GT (these three test folders are needed for it). 106 clips:
 
 | condition | pan_err×1e3 mean / median | rot_deg mean (median) |
@@ -162,7 +162,7 @@ end-effector targets) — not given by pretrained PAN.
 ## Scoring (coach → user → motion_scoring)
 
 ```
-python -m pipeline.score_user --coach <video|run dir> --user <video|run dir> [--name N] [--compare-original]
+python -m pipeline.validation.score_user --coach <video|run dir> --user <video|run dir> [--name N] [--compare-original]
 ```
 Video arguments run `run_video` (WHAM, `--ground frame`; AV1 transcoded) or reuse `runs/video_wham/<stem>`;
 then `coach_to_user` (PAN) → `bvh_to_npz` (official BVH FK, BigVegas → SMPL-22 names, cm, Y up, 30 fps)

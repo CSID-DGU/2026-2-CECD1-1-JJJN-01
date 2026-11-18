@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from pipeline.core.paths import REPO  # noqa: E402
+from pipeline.common.paths import REPO  # noqa: E402
 
 # SMPL-22 name -> BigVegas joint (same joint, left/right as seen by the person)
 SMPL_FROM_BIGVEGAS = {
