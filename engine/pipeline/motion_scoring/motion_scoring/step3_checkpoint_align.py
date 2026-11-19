@@ -29,41 +29,6 @@ def event_cost(a, b, w, tau, kappa, w_pos=2.0, w_ctx=1.0, trim=0.0):
     return content, w_pos * abs(a.s - b.s)
 
 
-def _nw(eC, eS, cost, sigma, gap, forbid=None):
-    """cost[i, j] = (content, position). Diagonal step = min(content, sigma) + position."""
-    n, m = len(eC), len(eS)
-    D = np.full((n + 1, m + 1), np.inf)
-    D[0, 0] = 0.0
-    bp = {}
-    for i in range(n + 1):
-        for j in range(m + 1):
-            cand = []
-            if i and j:
-                c, pos = cost[i - 1][j - 1]
-                if c >= sigma or forbid != (i - 1, j - 1):
-                    cand.append((D[i - 1, j - 1] + min(c, sigma) + pos,
-                                 ("match" if c < sigma else "substitute", i - 1, j - 1, c + pos)))
-            if i:
-                cand.append((D[i - 1, j] + gap, ("missing", i - 1, None, gap)))
-            if j:
-                cand.append((D[i, j - 1] + gap, ("extra", None, j - 1, gap)))
-            if cand:
-                v, op = min(cand, key=lambda x: x[0])
-                if v < D[i, j]:
-                    D[i, j], bp[(i, j)] = v, op
-    ops, i, j = [], n, m
-    while (i, j) != (0, 0):
-        op = bp[(i, j)]
-        ops.append(op)
-        if op[0] in ("match", "substitute"):
-            i, j = i - 1, j - 1
-        elif op[0] == "missing":
-            i -= 1
-        else:
-            j -= 1
-    return float(D[n, m]), ops[::-1]
-
-
 def align_events(eC, eS, w, cfg: Config, tau, kappa):
     """Two passes -> total cost, [dict(kind, i, j, cost, margin)].
 

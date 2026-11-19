@@ -19,6 +19,7 @@ def frame_cost(C: Clip, S: Clip, cfg: Config, tau: float):
 
 # ---------------------------------------------------------------- frames
 STEP_NAMES = ("match", "warp_c", "warp_s", "drop_c", "drop_s")
+DROPS = STEP_NAMES[3:]               # steps without a counterpart frame
 
 
 def drop_dtw(cost, dc, ds, lam, hold_c=None, hold_s=None):
