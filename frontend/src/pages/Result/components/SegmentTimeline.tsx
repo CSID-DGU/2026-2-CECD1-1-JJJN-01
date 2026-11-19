@@ -35,8 +35,8 @@ const LABEL_MIN_RATIO = 0.16;
 
 /**
  * 재생 시간축(뷰어의 슬라이더와 같은 시간) 위에 구간을 늘어놓는다.
- * 블록 길이는 재생에서 그 구간이 차지한 시간. 색은 판정(일치면 타이밍).
- * 좁은 블록은 글자 없이 색만 보이고, 아래 칩 줄에서 이름으로 고른다.
+ * 블록의 위치 · 길이는 재생에서 그 구간이 차지한 시간 그대로라서, 재생선이 블록 경계를 지날 때 구간이 바뀐다.
+ * 색은 판정(일치면 타이밍). 좁은 블록은 글자 없이 색만 보이고, 아래 칩 줄에서 이름으로 고른다.
  */
 export function SegmentTimeline({ segments, totalSec, currentSec, selectedId, onSelect }: SegmentTimelineProps) {
   const safeTotal = totalSec > 0 ? totalSec : 1;
@@ -45,12 +45,19 @@ export function SegmentTimeline({ segments, totalSec, currentSec, selectedId, on
   return (
     <div>
       <div className="relative">
-        <div className="flex h-9 w-full gap-0.5 overflow-hidden rounded-[10px]" role="list" aria-label="구간 시간축">
+        <div
+          className="relative h-9 w-full overflow-hidden rounded-[10px] bg-page"
+          role="list"
+          aria-label="구간 시간축"
+        >
           {segments.map((segment) => {
             const range = segment.studentRange;
             const duration = range ? Math.max(range[1] - range[0], 0) : 0;
-            // 아주 짧은 구간(이나 studentRange 가 없는 구간)도 눌리도록 최소 폭을 준다
-            const grow = Math.max(duration, safeTotal * 0.04);
+            // 재생 시간이 없는 구간은 막대에 자리가 없다. 아래 칩 줄에서 고른다
+            if (!range || duration <= 0) return null;
+            // 재생선과 같은 축: 블록의 왼쪽 끝 = 구간 시작 시각. 폭을 부풀리거나 순서대로 이어 붙이지 않는다
+            const leftPct = Math.min(Math.max((range[0] / safeTotal) * 100, 0), 100);
+            const widthPct = Math.min((duration / safeTotal) * 100, 100 - leftPct);
             const showLabel = duration / safeTotal >= LABEL_MIN_RATIO;
             const selected = segment.id === selectedId;
             return (
@@ -60,9 +67,10 @@ export function SegmentTimeline({ segments, totalSec, currentSec, selectedId, on
                 role="listitem"
                 onClick={() => onSelect(segment)}
                 aria-label={segment.label}
-                style={{ flexGrow: grow, flexBasis: 0 }}
+                style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
                 className={cn(
-                  'min-w-0 overflow-hidden px-1.5 text-left text-[11px] leading-tight font-semibold whitespace-nowrap transition-shadow',
+                  'absolute inset-y-0 min-w-1 overflow-hidden border-r-2 border-surface text-left text-[11px] leading-tight font-semibold whitespace-nowrap transition-shadow',
+                  showLabel && 'px-1.5',
                   TONE_CLASS[segmentTone(segment)],
                   selected && 'inset-ring-2 inset-ring-ink',
                 )}

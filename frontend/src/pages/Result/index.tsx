@@ -62,7 +62,8 @@ export function ResultPage() {
   // 누가 움직이는지는 백엔드가 frameMap 으로 정해 준다
   const coachFrame = result.frameMap.coachFrame[player.frame] ?? player.frame;
   const frameKind = result.frameMap.kind[player.frame] ?? 'together';
-  const totalSec = Math.max(frameCount - 1, 0) / fps;
+  // 타임라인의 축 길이. 프레임 k 는 [k, k + 1) / fps 를 차지하고, 마지막 구간은 frameCount / fps 에서 끝난다
+  const totalSec = frameCount / fps;
 
   return (
     <>
