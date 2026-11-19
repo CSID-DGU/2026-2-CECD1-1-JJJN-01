@@ -1,4 +1,4 @@
-import type { AlignmentPath, SkeletonSequence, Vec3 } from '@/types/analysis';
+import type { SkeletonSequence, Vec3 } from '@/types/analysis';
 
 /**
  * 뼈 연결 정의.
@@ -105,21 +105,23 @@ export function computeBounds(sequences: SkeletonSequence[]): Bounds {
 }
 
 /**
- * 사용자 프레임 → 코치 프레임 조회 테이블.
- * 짝이 없는 사용자 프레임은 직전에 짝이 있던 코치 프레임을 그대로 쓴다(멈춘 것처럼 보인다).
- * 한 사용자 프레임에 코치 프레임이 여럿 매핑되면 첫 번째를 쓴다.
+ * 소수 프레임 위치의 관절 좌표. 앞뒤 프레임(floor / ceil)을 선형 보간한다.
+ * 지금 백엔드는 frameMap.coachFrame 을 정수로 보내서 보간 없이 그 프레임이 그대로 나온다.
+ * 소수가 와도 그려지도록 남겨 둔다. 범위를 벗어나면 양 끝 프레임으로 자른다.
  */
-export function buildAlignmentLookup(alignment: AlignmentPath, studentFrameCount: number): Int32Array {
-  const lookup = new Int32Array(studentFrameCount).fill(-1);
-  for (const [s, c] of alignment) {
-    if (s >= 0 && s < studentFrameCount && lookup[s] === -1) lookup[s] = c;
-  }
-  let last = 0;
-  for (let i = 0; i < studentFrameCount; i++) {
-    if (lookup[i] === -1) lookup[i] = last;
-    else last = lookup[i];
-  }
-  return lookup;
+export function sampleFrame(seq: SkeletonSequence, frame: number): Vec3[] {
+  const last = seq.frames.length - 1;
+  if (last < 0) return [];
+  const f = Number.isFinite(frame) ? Math.min(Math.max(frame, 0), last) : 0;
+  const lo = Math.floor(f);
+  const t = f - lo;
+  const a = seq.frames[lo];
+  if (t === 0) return a;
+  const b = seq.frames[lo + 1];
+  return a.map((p, j) => {
+    const q = b[j] ?? p;
+    return [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, p[2] + (q[2] - p[2]) * t];
+  });
 }
 
 /** 초 → 프레임 인덱스 */

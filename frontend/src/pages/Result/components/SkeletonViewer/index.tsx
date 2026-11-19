@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Grid, OrbitControls } from '@react-three/drei';
-import type { SkeletonSequence } from '@/types/analysis';
-import { computeBounds, resolveBones } from '@/utils/skeleton';
+import type { FrameMapKind, SkeletonSequence } from '@/types/analysis';
+import { WAITING_LABEL } from '@/utils/segments';
+import { computeBounds, resolveBones, sampleFrame } from '@/utils/skeleton';
 import { cn } from '@/utils/cn';
 import { SkeletonMesh } from './SkeletonMesh';
 
@@ -12,7 +13,10 @@ interface SkeletonViewerProps {
   student: SkeletonSequence;
   coach: SkeletonSequence;
   studentFrame: number;
+  /** frameMap.coachFrame. 소수가 오면 앞뒤 프레임을 보간해서 그린다 */
   coachFrame: number;
+  /** 이 프레임에서 누가 움직이는지 (frameMap.kind). 한쪽만 움직이면 뷰어 위에 알려 준다 */
+  frameKind: FrameMapKind;
   /** 사용자 스켈레톤에서 강조할 뼈 */
   highlightBones: Set<string>;
   layout: ViewerLayout;
@@ -33,6 +37,7 @@ export function SkeletonViewer({
   coach,
   studentFrame,
   coachFrame,
+  frameKind,
   highlightBones,
   layout,
   onLayoutChange,
@@ -52,7 +57,7 @@ export function SkeletonViewer({
   const coachGhost = layout === 'overlay';
 
   const studentJoints = student.frames[studentFrame] ?? student.frames[0] ?? [];
-  const coachJoints = coach.frames[coachFrame] ?? coach.frames[0] ?? [];
+  const coachJoints = sampleFrame(coach, coachFrame);
 
   return (
     <div className="overflow-hidden rounded-card bg-page">
@@ -94,7 +99,17 @@ export function SkeletonViewer({
         </div>
       </div>
 
-      <div className="aspect-square w-full touch-none">
+      <div className="relative aspect-square w-full touch-none">
+        {/* 한쪽이 서서 기다리는 구간이 멈춘 것처럼 보이지 않게 */}
+        {frameKind !== 'together' && (
+          <span className="pointer-events-none absolute bottom-3 left-3 z-10 flex items-center gap-1.5 rounded-full bg-surface/90 px-2.5 py-1 text-[12px] font-semibold text-ink-muted">
+            <span
+              className={cn('size-2 rounded-full', frameKind === 'coachAhead' ? 'bg-coach' : 'bg-me')}
+              aria-hidden="true"
+            />
+            {WAITING_LABEL[frameKind]}
+          </span>
+        )}
         <Canvas camera={{ position: cameraPosition, fov: 35, near: 0.05, far: 50 }} dpr={[1, 2]}>
           <ambientLight intensity={0.9} />
           <directionalLight position={[3, 5, 4]} intensity={0.9} />

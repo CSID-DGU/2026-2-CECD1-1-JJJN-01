@@ -4,7 +4,7 @@ import { segmentTone, VERDICT_LABEL, type Tone } from '@/utils/segments';
 
 interface SegmentTimelineProps {
   segments: Segment[];
-  /** 사용자 영상 전체 길이 (초) */
+  /** 재생 전체 길이 (초) */
   totalSec: number;
   /** 지금 재생 위치 (초) */
   currentSec: number;
@@ -34,8 +34,8 @@ const DOT_CLASS: Record<Tone, string> = {
 const LABEL_MIN_RATIO = 0.16;
 
 /**
- * 사용자 영상 시간축 위에 구간을 늘어놓는다.
- * 블록 길이는 내 영상에서 그 구간이 차지한 시간. 색은 판정(일치면 타이밍).
+ * 재생 시간축(뷰어의 슬라이더와 같은 시간) 위에 구간을 늘어놓는다.
+ * 블록 길이는 재생에서 그 구간이 차지한 시간. 색은 판정(일치면 타이밍).
  * 좁은 블록은 글자 없이 색만 보이고, 아래 칩 줄에서 이름으로 고른다.
  */
 export function SegmentTimeline({ segments, totalSec, currentSec, selectedId, onSelect }: SegmentTimelineProps) {
@@ -49,7 +49,7 @@ export function SegmentTimeline({ segments, totalSec, currentSec, selectedId, on
           {segments.map((segment) => {
             const range = segment.studentRange;
             const duration = range ? Math.max(range[1] - range[0], 0) : 0;
-            // 누락처럼 시간이 거의 없는 구간도 눌리도록 최소 폭을 준다
+            // 아주 짧은 구간(이나 studentRange 가 없는 구간)도 눌리도록 최소 폭을 준다
             const grow = Math.max(duration, safeTotal * 0.04);
             const showLabel = duration / safeTotal >= LABEL_MIN_RATIO;
             const selected = segment.id === selectedId;

@@ -1,10 +1,10 @@
 import { useRef, type ChangeEvent } from 'react';
 import { Button } from '@/components/Button';
-import { Spinner } from '@/components/Spinner';
 import { UPLOAD_LIMITS } from '@/constants/upload';
 import type { VideoMetadata } from '@/utils/video';
 import { formatBytes, formatSeconds } from '@/utils/format';
 import { cn } from '@/utils/cn';
+import { VideoPreview } from './VideoPreview';
 
 interface VideoDropzoneProps {
   file: File | null;
@@ -61,23 +61,7 @@ export function VideoDropzone({ file, previewUrl, metadata, error, loading, onPi
         </div>
       ) : (
         <div className={cn('overflow-hidden rounded-card border', error ? 'border-bad' : 'border-line')}>
-          <div className="relative aspect-[3/4] max-h-[360px] w-full bg-ink">
-            {previewUrl && (
-              <video
-                src={previewUrl}
-                className="size-full object-contain"
-                controls
-                muted
-                playsInline
-                preload="metadata"
-              />
-            )}
-            {loading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-ink/40">
-                <Spinner className="text-white" />
-              </div>
-            )}
-          </div>
+          <VideoPreview src={previewUrl} loading={loading} />
           <div className="flex items-center gap-3 px-4 py-3">
             <div className="min-w-0 flex-1">
               <div className="truncate text-[14px] font-medium text-ink">{file.name}</div>

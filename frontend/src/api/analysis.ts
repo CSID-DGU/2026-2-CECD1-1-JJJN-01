@@ -12,8 +12,7 @@ export async function createAnalysis(req: CreateAnalysisRequest): Promise<Create
   const form = new FormData();
   form.append('video', req.video);
   form.append('exercise', req.exercise);
-  if (req.coachId) form.append('coachId', req.coachId);
-  if (req.coachVideo) form.append('coachVideo', req.coachVideo);
+  form.append('coachVideo', req.coachVideo);
 
   return request<CreateAnalysisResponse>('/analysis', { method: 'POST', body: form });
 }
