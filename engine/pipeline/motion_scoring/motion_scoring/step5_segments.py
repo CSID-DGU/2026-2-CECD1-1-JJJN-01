@@ -10,8 +10,8 @@ Each unit carries exactly one structure label
   extra         student only
 and its times on both videos. Nothing else (no phase, no sentences): the LLM gets the video and these facts.
 
-Where one clip alone has checkpoints between two matched ones (it repeats the movement more often), what it
-adds is cut out as whole repetitions: loops from the pose the clip rests in back to it (_shared_before).
+Where one clip alone goes on having checkpoints (it repeats the movement more often), what it adds is cut
+out as whole repetitions: loops from the pose the clip rests in back to it (_shared_before).
 
 A unit that reaches a clip edge which is not a matched rest carries edge = "start" | "end" | "both", and
 cut = the clips that are already / still moving there: its movement is not complete in the video, so it
@@ -171,16 +171,26 @@ def _home(events):
     return None
 
 
+def _extend(u, C, S, to_c, to_s):
+    """Unit u also owns the way on to frame to_c of the coach / to_s of the student (the sides it has)."""
+    if u["_c"] is not None:
+        u["_c"] = (u["_c"][0], to_c); u["coach_t"] = _span(C, *u["_c"])
+    if u["_s"] is not None:
+        u["_s"] = (u["_s"][0], to_s); u["student_t"] = _span(S, *u["_s"])
+
+
 def _shared_before(D, cfg, a, b, gap, w):
-    """In a stretch where one clip alone has unmatched checkpoints, they cut its part into movements, and the
-    other clip's single movement is the same as one of them. -> the index in `gap` of the checkpoint that
-    movement ends at (None: it is the last movement, the one after all of them).
+    """Where one clip alone has unmatched checkpoints from the last place both clips are at (the start of the
+    stretch, or its last substitution) to the end of the stretch, they cut its part into movements, and the
+    other clip's single movement there is the same as one of them. -> the index in `gap` of the checkpoint
+    that movement ends at (None: it is the last movement, the one after all of them).
 
     The movements before and after the shared one are added blocks, and an added block is a loop from the
     pose the clip rests in back to it (a whole repetition): it cannot start at a turning point. Repetitions
     look alike, so the choice is made by where a block starts and ends, with poses of the one clip only, and
     not by how well a movement fits the other clip's. Nothing fits that reading -> the last movement."""
-    sides = {(o["i"] is None, o["j"] is None) for o in gap}
+    k0 = max((k + 1 for k, o in enumerate(gap) if o["kind"] == "substitution"), default=0)   # behind the last one
+    sides = {(o["i"] is None, o["j"] is None) for o in gap[k0:]}
     if sides == {(True, False)}:
         ev, key, x0, x1 = D["eS"], "j", a.s, b.s
     elif sides == {(False, True)}:
@@ -190,13 +200,13 @@ def _shared_before(D, cfg, a, b, gap, w):
     home = _home(ev)
     if home is None:
         return None
-    poses = [x0.pose] + [ev[o[key]].pose for o in gap] + [x1.pose]
+    poses = [ev[gap[k0 - 1][key]].pose if k0 else x0.pose] + [ev[o[key]].pose for o in gap[k0:]] + [x1.pose]
     n = len(poses) - 1
     size = max(pose_dist(poses[k], poses[k + 1], w) for k in range(n))             # one movement of this clip
     at_home = [pose_dist(p, home, w) < cfg.same_place * size for p in poses]
     fits = [p for p in range(1, n + 1) if (p == 1 or (at_home[0] and at_home[p - 1]))
             and (p == n or (at_home[p] and at_home[n]))]
-    return fits[-1] - 1 if fits and fits[-1] < n else None
+    return k0 + fits[-1] - 1 if fits and fits[-1] < n else None
 
 
 def _stretch(res, cfg, a, b):
@@ -213,8 +223,11 @@ def _stretch(res, cfg, a, b):
     else:
         units = []
         cur_c, cur_s = c0, s0
-        last_c = max((o["i"] for o in gap if o["i"] is not None), default=None)   # the last unmatched
-        last_s = max((o["j"] for o in gap if o["j"] is not None), default=None)   # checkpoint of each side
+
+        def last(ops):
+            """the last unmatched checkpoint of each side among these"""
+            return tuple(max((o[key] for o in ops if o[key] is not None), default=None) for key in "ij")
+        last_c, last_s = last(gap)
 
         def end_of(events, k, last, cap):
             """a unit ends with the stillness / dip of its checkpoint. A reversal followed by another
@@ -224,16 +237,18 @@ def _stretch(res, cfg, a, b):
                 return min(events[k + 1].i0, cap)
             return min(events[k].i1, cap)
         first = _shared_before(D, cfg, a, b, gap, w)   # the movement both make comes before gap[first]
+        head = last(gap[:first or 0])                  # what is before it ends with its own last checkpoints
         for n, o in enumerate(gap):
-            lc, ls = last_c, last_s
-            if first is not None and n < first:        # the block before it ends with its own last checkpoint
-                lc, ls = gap[first - 1]["i"], gap[first - 1]["j"]
+            lc, ls = head if n < (first or 0) else (last_c, last_s)
             if n == first:                             # the shared movement: up to this checkpoint
                 to_c = c1 if o["i"] is None else eC[o["i"]].i0
                 to_s = s1 if o["j"] is None else eS[o["j"]].i0
-                units += _shared(C, S, (cur_c, to_c), (cur_s, to_s),
-                                 (a.c.w if cur_c == c0 else cur_c, b.c.w if to_c == c1 else to_c),
-                                 (a.s.w if cur_s == s0 else cur_s, b.s.w if to_s == s1 else to_s), at_edge)
+                if n and gap[n - 1]["kind"] == "substitution":
+                    _extend(units[-1], C, S, to_c, to_s)                  # the way out of a substitution is part of it
+                else:
+                    units += _shared(C, S, (cur_c, to_c), (cur_s, to_s),
+                                     (a.c.w if cur_c == c0 else cur_c, b.c.w if to_c == c1 else to_c),
+                                     (a.s.w if cur_s == s0 else cur_s, b.s.w if to_s == s1 else to_s), at_edge)
                 cur_c, cur_s = to_c, to_s
             end_c = end_of(eC, o["i"], lc, c1) if o["i"] is not None else cur_c
             end_s = end_of(eS, o["j"], ls, s1) if o["j"] is not None else cur_s
@@ -254,10 +269,7 @@ def _stretch(res, cfg, a, b):
         back_c = last_c is not None and returns(eC[last_c].pose, a.c.pose, b.c.pose)
         back_s = last_s is not None and returns(eS[last_s].pose, a.s.pose, b.s.pose)
         if first is not None or back_c or back_s or u["structure"] == "substitution":
-            if u["_c"] is not None:
-                u["_c"] = (u["_c"][0], c1); u["coach_t"] = _span(C, *u["_c"])
-            if u["_s"] is not None:
-                u["_s"] = (u["_s"][0], s1); u["student_t"] = _span(S, *u["_s"])
+            _extend(u, C, S, c1, s1)
         else:                                          # what is left is a shared movement
             units += _shared(C, S, (cur_c, c1), (cur_s, s1), (cur_c, b.c.w), (cur_s, b.s.w), at_edge)
     if at_edge:

@@ -250,6 +250,25 @@ def test_another_number_of_repetitions():
         assert abs(t0 - start(k)) < 0.3 and abs(t1 - (start(n - 1) + 2.0)) < 0.3, (coach, user, t0, t1)
 
 
+def test_another_number_of_repetitions_done_differently():
+    """the same where every repetition is another action at the bottom (a substitution): each of the coach's
+    repetitions is put against one whole repetition of the student, down and up on both sides, and what one
+    of them does more often begins where that repetition ends"""
+    start = lambda k: 0.8 + 2.6 * k                                       # when repetition k (0-based) begins
+    cfg = replace(CFG, sigma=0.6)                                         # strict matching: a shallow bottom is no match
+    for coach, user in ((1, 3), (2, 3), (3, 1), (3, 2)):
+        _, d = compare(syn.phases(reps=coach), syn.phases(reps=user, depth=0.35), cfg=cfg)
+        k, n = min(coach, user), max(coach, user)
+        more, key = ("extra", "student_t") if user > coach else ("missing", "coach_t")
+        # k repetitions = k substitutions + the k - 1 rests between them, then everything else in one unit
+        assert structures(d) == (["substitution", "match"] * k)[:-1] + [more], (coach, user, structures(d))
+        for r, s in enumerate(d["segments"][:-1:2]):
+            for t0, t1 in (s["coach_t"], s["student_t"]):
+                assert t0 < start(r) + 0.3 and t1 > start(r) + 1.7, (coach, user, r, s)
+        t0, t1 = d["segments"][-1][key]
+        assert t0 > start(k - 1) + 1.7 and abs(t1 - (start(n - 1) + 2.0)) < 0.3, (coach, user, t0, t1)
+
+
 def test_mirrored_user():
     ph = syn.phases(reps=3)
     _, d = compare(ph, ph, coach=dict(asym=15.0), user=dict(asym=15.0, mirror=True))
