@@ -23,7 +23,7 @@ import numpy as np
 from .step1_preprocess import pose_dist
 from .step4_frame_align import DROPS
 
-PRIVATE = ("_c", "_s", "_wc", "_ws", "_tc", "_ts", "_short", "_untimed")    # working keys, not in the output
+PRIVATE = ("_c", "_s", "_wc", "_ws", "_tc", "_ts", "_short", "_untimed", "_mid")   # working keys, not in the output
 
 
 def motion_summary(clip, t0, t1, ref_t=None, top=4):
@@ -49,8 +49,8 @@ def _span(X, a, b):
     return [round(float(X.t[a]), 3), round(float(X.t[b]), 3)]
 
 
-def build_units(res, cfg):
-    """-> (units, global tempo)."""
+def build_units(res, cfg, private=False):
+    """-> (units, global tempo). private: keep the working keys (the frame ranges _c / _s, ...), for playback."""
     units = _merge(_structure(res, cfg), res)
     tempo = _timing(units, res, cfg)
     _pose(units, res, cfg)
@@ -59,9 +59,10 @@ def build_units(res, cfg):
             u["coach_motion"] = motion_summary(res.C, *u["coach_t"], ref_t=u["coach_t"][0])
         if u["structure"] in ("substitution", "extra") and u["_s"]:
             u["student_motion"] = motion_summary(res.S, *u["student_t"], ref_t=u["student_t"][0])
-    for u in units:
-        for k in PRIVATE:
-            u.pop(k, None)
+    if not private:
+        for u in units:
+            for k in PRIVATE:
+                u.pop(k, None)
     return units, tempo
 
 
@@ -190,7 +191,8 @@ def _stretch(res, cfg, a, b):
                               coach_t=_span(C, cur_c, end_c) if o["i"] is not None else None,
                               student_t=_span(S, cur_s, end_s) if o["j"] is not None else _span(S, cur_s, cur_s),
                               _c=(cur_c, end_c) if o["i"] is not None else None,
-                              _s=(cur_s, end_s) if o["j"] is not None else None))
+                              _s=(cur_s, end_s) if o["j"] is not None else None,
+                              _mid=(eC[o["i"]].i, eS[o["j"]].i) if o["kind"] == "substitution" else None))
             cur_c, cur_s = end_c, end_s
 
         def returns(last, base, nxt):

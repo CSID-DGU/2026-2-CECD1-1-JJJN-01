@@ -1,8 +1,9 @@
 """Pipeline outputs -> frontend `AnalysisResult` (frontend/src/types/analysis.ts).
 
 Inputs: a coach_to_user output directory (coach_on_user_pan.bvh, user.bvh). Joint positions come
-from the official BVH FK (pipeline.bvh_to_npz); motion_scoring runs in-process so that the frame
-alignment (Result.debug['path']) is available -- score.json does not contain it.
+from the official BVH FK (pipeline.bvh_to_npz); motion_scoring runs in-process so that its frame
+pairs (Result.debug['path']) and its playback order (Result.playback()) are available -- score.json
+does not contain them.
 
 Mapping
   skeleton   SMPL-22 (bvh_to_npz) -> the 15 frontend joint names, cm -> m, Y up, floor y = 0,
@@ -11,8 +12,11 @@ Mapping
              student_t / coach_t -> ranges, timing as motion_scoring gives it (label slow/fast,
              ratio relative to the global tempo; no label -> ok), pose.worst -> deviations
   label      squat only: from the pelvis height over the segment (see squat_label)
-  alignment  DTW path [(kind, coach i, student j)] without drops -> [[student j, coach i]]
-  frameMap   per user frame: the coach frame to draw (fractional, smoothed) and the step kind (frame_map.py)
+  playback   both skeletons are sent in the scorer's playback order, so frame k of one belongs with
+             frame k of the other: frameMap = the coach frame to draw and who moves at k, and a
+             segment's studentRange = its time on that timeline. See frame_map.py. The scorer's own
+             frame pairs are only used here, for the pose values: the response has no `alignment`
+             (and no `score`).
   mirrored   if the scorer matched the mirrored user, the coach is shown mirrored (x -> -x,
              left/right joints swapped) and deviation bones are named on the user's own side
   pose       pose_metrics.py: deviations get direction / components (signed, body frame), and
@@ -25,7 +29,7 @@ import numpy as np
 
 from ..constants import PIPELINE_REPO
 from .pose_metrics import Body, pose_metrics, signed_deviations
-from .frame_map import frame_map
+from .frame_map import in_playback_order
 
 if str(PIPELINE_REPO) not in sys.path:
     sys.path.insert(0, str(PIPELINE_REPO))
@@ -115,8 +119,11 @@ def build_segments(units, mirrored, label_fn):
     return out
 
 
-def build_result(job_id, exercise, retarget_dir, with_score=False):
-    """-> AnalysisResult dict (and the motion_scoring to_dict() when with_score, for the LLM stage)."""
+def build_result(job_id, exercise, retarget_dir, with_score=False, playback=True):
+    """-> AnalysisResult dict (and the motion_scoring to_dict() when with_score, for the LLM stage).
+    playback=False: the two skeletons as recorded, every range on the videos' own times, and the scorer's
+    frame pairs as `alignment` in place of `frameMap` (for experiments that check the analysis against the
+    videos; the API never sends this form)."""
     from pipeline.bvh_to_npz import bvh_joints
     from pipeline.common.paths import SCORING_DIR
     if str(SCORING_DIR) not in sys.path:
@@ -146,13 +153,18 @@ def build_result(job_id, exercise, retarget_dir, with_score=False):
     segments = build_segments(d['segments'], d['mirrored'], label)
     body_u, body_c = Body(user, names, fps_u), Body(coach, names, fps_c)
     signed_deviations(segments, body_u, body_c, alignment, d['mirrored'])
+    metrics = pose_metrics(body_u, body_c, alignment, segments, d['mirrored'])     # all on the videos' own times
+    student = skeleton_sequence(user, names, fps_u)
+    shown_coach = skeleton_sequence(coach, names, fps_c, mirror=d['mirrored'])
+    view = dict(alignment=[list(p) for p in alignment])    # playback=False only: the scorer's frame pairs
+    if playback:                                           # what the viewer draws: frame k of both (frame_map.py)
+        view = dict(frameMap=in_playback_order(res.playback(), student, shown_coach, segments))
     result = dict(
         jobId=job_id, exercise=exercise,
         segments=segments,
-        student=skeleton_sequence(user, names, fps_u),
-        coachRetargeted=skeleton_sequence(coach, names, fps_c, mirror=d['mirrored']),
-        alignment=[list(p) for p in alignment],
-        frameMap=frame_map(res.debug['path'], len(user), len(coach)),
-        poseMetrics=pose_metrics(body_u, body_c, alignment, segments, d['mirrored']),
+        student=student,
+        coachRetargeted=shown_coach,
+        **view,
+        poseMetrics=metrics,
     )
     return (result, d) if with_score else result

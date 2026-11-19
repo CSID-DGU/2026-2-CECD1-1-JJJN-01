@@ -60,7 +60,6 @@ def summarize(result):
     segs = result.get('segments', [])
     pm = result.get('poseMetrics') or {}
     fb = result.get('feedback')
-    al = result.get('alignment', [])
     seq = lambda s: dict(frames=len(s['frames']), joints=len(s['jointNames']), fps=s['fps']) if s else None
     return dict(
         bytes=len(json.dumps(result, ensure_ascii=False).encode()),
@@ -75,7 +74,6 @@ def summarize(result):
             withHold=sum('hold' in s for s in segs)),
         student=seq(result.get('student')),
         coachRetargeted=seq(result.get('coachRetargeted')),
-        alignment=dict(pairs=len(al), userFramesCovered=len({p[0] for p in al}), first=al[:3]),
         frameMap=None if not result.get('frameMap') else dict(
             frames=len(result['frameMap']['coachFrame']), kinds=dict(Counter(result['frameMap']['kind'])),
             first=result['frameMap']['coachFrame'][:5]),
@@ -102,8 +100,8 @@ def get(job, response, client=None):
     if status == 'done':
         sg, pm = s['segments'], s['poseMetrics'] or {}
         console.info(f"api GET {job.jobId} done | segments {sg['count']} {sg['verdicts']}, frames "
-                     f"{(s['student'] or {}).get('frames')}/{(s['coachRetargeted'] or {}).get('frames')}, alignment "
-                     f"{s['alignment']['pairs']}, reps {pm.get('repCount')}, feedback "
+                     f"{(s['student'] or {}).get('frames')}/{(s['coachRetargeted'] or {}).get('frames')}, frameMap "
+                     f"{(s['frameMap'] or {}).get('kinds')}, reps {pm.get('repCount')}, feedback "
                      f"{(s['feedback'] or {}).get('items', 0)} items, {s['bytes'] / 1000:.0f} KB")
     else:
         console.info(f"api GET {job.jobId} {status} {response['progress']}" + (f" {entry.get('error')}" if status == 'failed' else ''))

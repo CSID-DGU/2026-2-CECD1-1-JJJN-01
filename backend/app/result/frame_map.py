@@ -1,71 +1,58 @@
-"""frameMap: for every user frame, which coach pose to draw (a fractional coach frame) and how the two relate.
+"""What the result viewer draws: the two skeletons in playback order.
 
-The frontend plays the user's video frame by frame and overlays the coach. CP-DTW's path (Result.debug['path'],
-steps (kind, coach i, user j)) can pair one user frame with many coach frames (warp_c: the coach goes through
-several frames while the user stays) or many user frames with one coach frame (warp_s: the coach waits). Picking
-the first pair per user frame (the old frontend rule) skips coach frames: 17 -> 30 in one step, about half the
-coach frames never shown. Here, per user frame:
+The scorer's frame pairs (Result.debug['path']) are made for comparing poses: one user frame can go with many
+coach frames and the other way round. Drawn as they are, the coach skips frames (17 -> 30 in one step) or
+stands still, the more so the more the two movements differ; a movement only the coach makes is never shown,
+and a difference in speed cannot be seen because the two always move together. They are not sent.
 
-  centre   the middle of its coach range (17..29 -> 23), so a fast stretch is split evenly on both sides
-  edges    outside the path (before the first / after the last anchor) the user and coach clip ends are joined
-           by a straight line, so the coach starts / finishes moving instead of standing frozen
-  smooth   a centred moving average (SMOOTH frames) spreads the remaining jumps over neighbouring frames; it
-           keeps the sequence non-decreasing and leaves long waits (the user's bottom pause) flat in the middle
-  kind     together (both advance) | coachAhead (the coach goes through several frames here) | coachWaits
-           (the coach stays on one pose while the user moves) | userOnly (drop_s) | outside (no CP-DTW pair)
-
-Output (columnar, short): {coachFrame: [float per user frame], kind: [str per user frame]}. The frontend
-draws coach pose = interpolation between floor / ceil of coachFrame.
+The response carries both skeletons in the scorer's playback order instead (motion_scoring step6_playback:
+per segment both at their own real speed and in step again at every checkpoint; where only one of them
+moves, the other waits). The two sequences are equally long and frame k of the student belongs with frame k
+of the coach:
+  frameMap    per frame k: coachFrame = the coach frame to draw (k itself), and kind = who moves there:
+              together | coachWaits (only the user moves) | coachAhead (only the coach moves)
+  ranges      a segment's studentRange is its time on the playback timeline (a missing segment has a length
+              there: the coach is shown making the movement); coachRange stays the time on the coach's own
+              video. The times on the user's own video are not sent: they are the scorer's student_t, which
+              the llm stage reads.
 """
-import numpy as np
-
-SMOOTH = 9          # frames (0.3 s at 30 fps): drawn coach moves <= ~8 cm / frame (user's own max ~5 cm),
-                    # a 0.85 s bottom pause stays flat for ~0.55 s (only its edges blend)
 
 
-def frame_map(path, n_user, n_coach, smooth=SMOOTH):
-    by_user = {}
-    for kind, i, j in path:
-        by_user.setdefault(int(j), []).append((int(i), kind))
-    raw = np.full(n_user, np.nan)
-    kind = ['outside'] * n_user
-    for j, pairs in by_user.items():
-        if not 0 <= j < n_user:
-            continue
-        cs = [i for i, _ in pairs]
-        ks = {k for _, k in pairs}
-        raw[j] = (min(cs) + max(cs)) / 2
-        kind[j] = ('userOnly' if ks <= {'drop_s'} else 'coachAhead' if 'warp_c' in ks or len(set(cs)) > 1
-                   else 'together' if 'match' in ks else 'coachWaits')
-    have = np.where(~np.isnan(raw))[0]
-    if not len(have):                                       # no path at all: plain proportional mapping
-        raw = np.linspace(0, n_coach - 1, n_user)
-    else:
-        a, b = int(have[0]), int(have[-1])
-        if a > 0:                                           # join the clip starts
-            raw[:a + 1] = np.linspace(0, raw[a], a + 1)
-        if b < n_user - 1:                                  # join the clip ends
-            raw[b:] = np.linspace(raw[b], n_coach - 1, n_user - b)
-        inside = np.arange(a, b + 1)                        # user frames dropped inside the path: hold
-        raw[inside] = np.maximum.accumulate(np.where(np.isnan(raw[inside]), -np.inf, raw[inside]))
-    if smooth > 1 and n_user >= smooth:
-        pad = smooth // 2
-        padded = np.r_[np.full(pad, raw[0]), raw, np.full(pad, raw[-1])]
-        raw = np.convolve(padded, np.ones(smooth) / smooth, mode='valid')
-    raw = np.clip(raw, 0, n_coach - 1)
-    return dict(coachFrame=[round(float(x), 2) for x in raw], kind=kind)
-
-
-def first_pair_lookup(alignment, n_user):
-    """The previous frontend rule (utils/skeleton.ts buildAlignmentLookup), for comparisons."""
-    lk = [-1] * n_user
-    for s, c in alignment:
-        if 0 <= s < n_user and lk[s] == -1:
-            lk[s] = c
-    last = 0
-    for i in range(n_user):
-        if lk[i] == -1:
-            lk[i] = last
+def in_playback_order(pb, student, coach, segments):
+    """Put the response in the order of the playback pb (motion_scoring Result.playback()), in place: the frames
+    of the two skeleton sequences and the segments' studentRange. -> the frameMap of that order."""
+    student['frames'] = [student['frames'][i] for i in pb['student']]
+    coach['frames'] = [coach['frames'][i] for i in pb['coach']]
+    coach['fps'] = student['fps']                          # the playback clock is the student's frame rate
+    for seg, shown in zip(segments, playback_ranges(pb, student['fps'])):
+        if shown:
+            seg['studentRange'] = shown
         else:
-            last = lk[i]
-    return lk
+            seg.pop('studentRange', None)
+    return frame_map(pb)
+
+
+def frame_map(pb):
+    """frameMap of a playback. The kind names are the ones the response has always used."""
+    c, s = pb['coach'], pb['student']
+    kind = ['together'] * len(c)
+    for k in range(1, len(c)):
+        coach_moves, user_moves = c[k] != c[k - 1], s[k] != s[k - 1]
+        if coach_moves != user_moves:
+            kind[k] = 'coachAhead' if coach_moves else 'coachWaits'
+    return dict(coachFrame=[float(k) for k in range(len(c))], kind=kind)
+
+
+def playback_ranges(pb, fps):
+    """[start, end] (s) of every segment on the playback timeline; None for a segment with nothing left to play.
+
+    The frontend shows the segment with start <= frame / fps < end (utils/segments.ts segmentAtTime) and none
+    otherwise. So a segment lasts from its first frame until the next segment starts -- the few frames between
+    two of them (the turn at a reversal) stay with the one before -- and the times are frame / fps as the
+    frontend computes them, not rounded: from the first segment on every frame has its segment, and a seek to
+    `start` lands on the segment's first frame."""
+    out, nxt = [], None
+    for span in reversed(pb['segments']):
+        out.append(span and [span[0] / fps, (span[1] + 1 if nxt is None else nxt) / fps])
+        nxt = span[0] if span else nxt
+    return out[::-1]

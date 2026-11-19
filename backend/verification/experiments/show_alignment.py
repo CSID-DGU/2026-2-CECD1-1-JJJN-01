@@ -80,7 +80,7 @@ def main():
     tr = lambda j, f: track_from_joints(j, np.arange(len(j)) / f, 'y', None, names)
     res = score(tr(coach, fc), tr(user, fu), cfg, try_mirror=True)
     D = res.debug
-    result = build_result(job, 'squat', rd)
+    result = build_result(job, 'squat', rd, playback=False)   # the scorer's own frame pairs
     al = result['alignment']
     mine = sorted({(int(j), int(i)) for k, i, j in D['path'] if k not in ('drop_c', 'drop_s')})
     same = [list(p) for p in mine] == al
