@@ -28,9 +28,6 @@ VIDEO_MIME = {'video/mp4', 'video/quicktime', 'video/webm'}
 EXERCISES = ('squat', 'deadlift', 'bench_press')
 SUPPORTED_EXERCISES = ('squat',)          # segment labelling is squat-only for now
 
-# Placeholder until the total-score formula is decided (frontend requires score.total).
-DEFAULT_SCORE_TOTAL = 0
-
 # coachId -> pre-computed run_video output of the coach (same id in frontend/src/constants/coachVideos.ts)
 COACHES = {
     'squat-diag': dict(exercise='squat', run=PIPELINE_REPO / 'runs/video_wham/squat_diag_gframe'),

@@ -122,7 +122,7 @@ cd backend
   - 코치가 사용자 체형으로 리타겟팅된 골격이라 cm 를 그대로 비교한다. `mirrored` 면 코치 좌우를 바꿔 맞춘다.
 - `deviations[].direction`: 구간의 정렬된 프레임 쌍에서 (사용자 뼈 − 코치 뼈) 평균을 몸 기준 위 · 앞 · 바깥쪽 성분으로 나누고,
   제곱합이 `angleDiffDeg` 가 되도록 맞춘 값(`components`)의 가장 큰 성분.
-- `score.total`: 산식 미정 → `constants.DEFAULT_SCORE_TOTAL` (0). `feedback`: `llm` 단계 결과(실패 시 없음).
+- 총점(`score`)은 산식이 정해지지 않아 응답에 넣지 않는다. `feedback`: `llm` 단계 결과(실패 시 없음).
 
 ## 다음 단계
 

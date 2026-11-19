@@ -3,7 +3,7 @@
 Input to the model is a compact summary built from the frontend result (segment ids, labels,
 verdicts, timing, deviations with their direction, poseMetrics: joint angles at each squat bottom and
 standing) plus a few motion_scoring fields (global tempo, mirrored, coach / user motion of missing /
-extra segments). No skeleton frames, no video, no score (the total is a placeholder).
+extra segments). No skeleton frames, no video, no score (there is no total score yet).
 
 Provider: Google Gemini (google-genai SDK) with a JSON response schema; models are
 constants.GEMINI_MODELS (tried in order on overload / rate limit / timeout), the key GEMINI_API_KEY (backend/.env). LLM_PROVIDER=none disables the stage.
