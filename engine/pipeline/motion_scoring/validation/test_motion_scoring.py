@@ -221,6 +221,20 @@ def test_extra_and_missing_repetition():
     assert structures(d).count("match") == 8 and 1.6 < length(missing[0], "coach_t") < 3.4, d["segments"]
 
 
+def test_visits_are_counted_on_the_scale_of_the_clip():
+    """which visit to its place a checkpoint is: the top 0, 1, 2 and the bottom 0, 1 of two repetitions. The
+    tops alone are still one place when the bottoms were not found: "the same place" is measured against how
+    far the clip moves at all, not against the distance between the checkpoints that happen to be there"""
+    from motion_scoring.step2_checkpoints import _count_visits
+    clip = Clip(track(syn.phases(reps=2)), CFG)
+    ev = detect_events(clip, CFG)
+    assert [("v" if e.type == "reversal" else e.type[0], e.visit) for e in ev] == \
+        [("r", 0), ("v", 0), ("p", 1), ("v", 1), ("r", 2)], [(e.type, e.visit) for e in ev]
+    tops = [e for e in ev if e.type != "reversal"]
+    _count_visits(clip, tops, CFG)
+    assert [e.visit for e in tops] == [0, 1, 2], [e.visit for e in tops]
+
+
 def test_another_number_of_repetitions():
     """the coach's repetitions are compared with the student's first ones, one whole repetition each, and what
     the student does more often is one added stretch at the end (the other way round: missing)"""
