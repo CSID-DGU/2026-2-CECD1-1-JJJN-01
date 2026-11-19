@@ -221,6 +221,54 @@ def test_extra_and_missing_repetition():
     assert structures(d).count("match") == 8 and 1.6 < length(missing[0], "coach_t") < 3.4, d["segments"]
 
 
+def test_visits_are_counted_on_the_scale_of_the_clip():
+    """which visit to its place a checkpoint is: the top 0, 1, 2 and the bottom 0, 1 of two repetitions. The
+    tops alone are still one place when the bottoms were not found: "the same place" is measured against how
+    far the clip moves at all, not against the distance between the checkpoints that happen to be there"""
+    from motion_scoring.step2_checkpoints import _count_visits
+    clip = Clip(track(syn.phases(reps=2)), CFG)
+    ev = detect_events(clip, CFG)
+    assert [("v" if e.type == "reversal" else e.type[0], e.visit) for e in ev] == \
+        [("r", 0), ("v", 0), ("p", 1), ("v", 1), ("r", 2)], [(e.type, e.visit) for e in ev]
+    tops = [e for e in ev if e.type != "reversal"]
+    _count_visits(clip, tops, CFG)
+    assert [e.visit for e in tops] == [0, 1, 2], [e.visit for e in tops]
+
+
+def test_another_number_of_repetitions():
+    """the coach's repetitions are compared with the student's first ones, one whole repetition each, and what
+    the student does more often is one added stretch at the end (the other way round: missing)"""
+    ph = {n: syn.phases(reps=n) for n in (1, 2, 3, 5)}
+    start = lambda k: 0.8 + 2.6 * k                                       # when repetition k (0-based) begins
+    for coach, user in ((1, 3), (1, 5), (2, 5), (3, 1), (5, 2)):
+        _, d = compare(ph[coach], ph[user])
+        k, n = min(coach, user), max(coach, user)
+        more, key = ("extra", "student_t") if user > coach else ("missing", "coach_t")
+        # k repetitions = 2 k movements + the k - 1 rests between them, then everything else in one unit
+        assert structures(d) == ["match"] * (3 * k - 1) + [more], (coach, user, structures(d))
+        t0, t1 = d["segments"][-1][key]
+        assert abs(t0 - start(k)) < 0.3 and abs(t1 - (start(n - 1) + 2.0)) < 0.3, (coach, user, t0, t1)
+
+
+def test_another_number_of_repetitions_done_differently():
+    """the same where every repetition is another action at the bottom (a substitution): each of the coach's
+    repetitions is put against one whole repetition of the student, down and up on both sides, and what one
+    of them does more often begins where that repetition ends"""
+    start = lambda k: 0.8 + 2.6 * k                                       # when repetition k (0-based) begins
+    cfg = replace(CFG, sigma=0.6)                                         # strict matching: a shallow bottom is no match
+    for coach, user in ((1, 3), (2, 3), (3, 1), (3, 2)):
+        _, d = compare(syn.phases(reps=coach), syn.phases(reps=user, depth=0.35), cfg=cfg)
+        k, n = min(coach, user), max(coach, user)
+        more, key = ("extra", "student_t") if user > coach else ("missing", "coach_t")
+        # k repetitions = k substitutions + the k - 1 rests between them, then everything else in one unit
+        assert structures(d) == (["substitution", "match"] * k)[:-1] + [more], (coach, user, structures(d))
+        for r, s in enumerate(d["segments"][:-1:2]):
+            for t0, t1 in (s["coach_t"], s["student_t"]):
+                assert t0 < start(r) + 0.3 and t1 > start(r) + 1.7, (coach, user, r, s)
+        t0, t1 = d["segments"][-1][key]
+        assert t0 > start(k - 1) + 1.7 and abs(t1 - (start(n - 1) + 2.0)) < 0.3, (coach, user, t0, t1)
+
+
 def test_mirrored_user():
     ph = syn.phases(reps=3)
     _, d = compare(ph, ph, coach=dict(asym=15.0), user=dict(asym=15.0, mirror=True))
@@ -254,17 +302,19 @@ def test_playback_shows_every_frame_in_order():
 
 
 def test_playback_waits_where_only_one_side_moves():
-    """a movement only the student makes: the coach waits; one only the coach makes: the student waits"""
+    """a movement only the student makes: the coach stands and waits; one only the coach makes: the student does"""
     three, four = syn.phases(reps=3), syn.phases(reps=4)
+    # the largest change of a bone direction over the frames drawn (a squat: more than 1; standing: noise)
+    moved = lambda clip, frames: float(np.ptp(clip.b[frames.min():frames.max() + 1], axis=0).max())
     res, d, pb, pc, ps = playback(three, four)
     n = structures(d).index("extra")
     k0, k1 = pb["segments"][n]
-    assert len(set(pc[k0:k1 + 1])) == 1 and (np.diff(ps[k0:k1 + 1]) == 1).all(), (pc[k0], pc[k1])
+    assert moved(res.C, pc[k0:k1 + 1]) < 0.1 and (np.diff(ps[k0:k1 + 1]) == 1).all(), moved(res.C, pc[k0:k1 + 1])
     assert abs((k1 - k0) * pb["dt"] - length(d["segments"][n])) < 0.1, (k0, k1, d["segments"][n])
     res, d, pb, pc, ps = playback(four, three)
     n = structures(d).index("missing")
     k0, k1 = pb["segments"][n]                         # it has no time of its own on the student's video
-    assert len(set(ps[k0:k1 + 1])) == 1 and (np.diff(pc[k0:k1 + 1]) == 1).all(), (ps[k0], ps[k1])
+    assert moved(res.S, ps[k0:k1 + 1]) < 0.1 and (np.diff(pc[k0:k1 + 1]) == 1).all(), moved(res.S, ps[k0:k1 + 1])
     assert abs((k1 - k0) * pb["dt"] - length(d["segments"][n], "coach_t")) < 0.1, (k0, k1, d["segments"][n])
 
 

@@ -14,7 +14,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from .config import Config
-from .step1_preprocess import Clip
+from .step1_preprocess import Clip, pose_dist
 
 
 @dataclass
@@ -36,6 +36,7 @@ class Event:
     i_go: int = 0      # frame of t_go
     ctx_in: np.ndarray = None    # unit pose change from the previous event to this one (context)
     ctx_out: np.ndarray = None   # unit pose change from this event to the next one
+    visit: int = 0     # how many earlier checkpoints of the clip were at the same place (0 = first time there)
 
     def as_dict(self):
         return dict(type=self.type, t=round(self.t, 3), t_stop=round(self.t_stop, 3),
@@ -186,4 +187,24 @@ def detect_events(X: Clip, cfg: Config):
             return v / nv if nv > 1e-6 else np.zeros_like(v)
         e.ctx_in = unit(e.pose - ev[k - 1].pose) if k else np.zeros(e.pose.size)
         e.ctx_out = unit(ev[k + 1].pose - e.pose) if k + 1 < len(ev) else np.zeros(e.pose.size)
+    _count_visits(X, ev, cfg)
     return ev
+
+
+def _count_visits(X: Clip, ev, cfg: Config):
+    """Event.visit: which visit to its place a checkpoint is (the first bottom 0, the second bottom 1, ...).
+    Same place = closer than same_place x one movement. One movement is how far the clip gets from the pose
+    of its first checkpoint at all, not a distance between checkpoints: a clip whose bottoms were not found
+    (only the pauses at the top) would otherwise have no scale, and every checkpoint would be a new place."""
+    if not ev:
+        return
+    size = float(pose_dist(X.b, ev[0].pose, X.w).max())
+    places = []                                        # a place: [pose of the first checkpoint there, visits so far]
+    for e in ev:
+        k = next((k for k, (pose, _) in enumerate(places)
+                  if pose_dist(e.pose, pose, X.w) < cfg.same_place * size), None)
+        if k is None:
+            places.append([e.pose, 0])
+            k = len(places) - 1
+        e.visit = places[k][1]
+        places[k][1] += 1
