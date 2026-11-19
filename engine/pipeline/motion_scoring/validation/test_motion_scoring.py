@@ -230,6 +230,80 @@ def test_mirrored_user():
     assert d["mirrored"] is False
 
 
+# ---------------------------------------------------------------- playback: what the viewer draws
+def playback(coach_ph, user_ph, **kw):
+    """-> (Result, to_dict(), playback, coach frame per instant, student frame per instant)"""
+    res, d = compare(coach_ph, user_ph, **kw)
+    pb = res.playback()
+    return res, d, pb, np.array(pb["coach"]), np.array(pb["student"])
+
+
+def test_playback_shows_every_frame_in_order():
+    """both clips from the first frame to the last and no frame skipped, whatever differs"""
+    three, four = syn.phases(reps=3), syn.phases(reps=4)
+    i = nth(three, 0, 1.0)
+    hold = three[:i + 1] + [(1.0, 1.0)] + three[i + 1:]
+    for coach, user, kw in ((three, three, {}), (three, four, {}), (four, three, {}), (three, hold, {}),
+                            (three, three, dict(user=dict(cut=(1.3, 0.0)))), (syn.phases(reps=2), [(6.0, 0.0)], {})):
+        res, d, pb, pc, ps = playback(coach, user, **kw)
+        assert len(pc) == len(ps) and len(pb["segments"]) == len(d["segments"])
+        for seq, n in ((pc, len(res.C)), (ps, len(res.S))):
+            assert seq[0] == 0 and seq[-1] == n - 1 and set(np.diff(seq)) <= {0, 1}, (n, sorted(set(np.diff(seq))))
+        spans = [s for s in pb["segments"] if s]
+        assert all(a <= b for a, b in spans) and all(x[1] < y[0] for x, y in zip(spans, spans[1:])), spans
+
+
+def test_playback_waits_where_only_one_side_moves():
+    """a movement only the student makes: the coach waits; one only the coach makes: the student waits"""
+    three, four = syn.phases(reps=3), syn.phases(reps=4)
+    res, d, pb, pc, ps = playback(three, four)
+    n = structures(d).index("extra")
+    k0, k1 = pb["segments"][n]
+    assert len(set(pc[k0:k1 + 1])) == 1 and (np.diff(ps[k0:k1 + 1]) == 1).all(), (pc[k0], pc[k1])
+    assert abs((k1 - k0) * pb["dt"] - length(d["segments"][n])) < 0.1, (k0, k1, d["segments"][n])
+    res, d, pb, pc, ps = playback(four, three)
+    n = structures(d).index("missing")
+    k0, k1 = pb["segments"][n]                         # it has no time of its own on the student's video
+    assert len(set(ps[k0:k1 + 1])) == 1 and (np.diff(pc[k0:k1 + 1]) == 1).all(), (ps[k0], ps[k1])
+    assert abs((k1 - k0) * pb["dt"] - length(d["segments"][n], "coach_t")) < 0.1, (k0, k1, d["segments"][n])
+
+
+def test_playback_keeps_the_real_speed():
+    """a slower descent is seen as slower: the coach arrives first and waits; the next units start in step"""
+    ph = syn.phases(reps=3)
+    user = list(ph)
+    user[nth(user, 1, 1.0)] = (1.5, 1.0)                                  # the second descent: 1.0 s -> 1.5 s
+    res, d, pb, pc, ps = playback(ph, user)
+    n = next(k for k, s in enumerate(d["segments"]) if s["timing"])
+    k0, k1 = pb["segments"][n]
+    waits = int((np.diff(pc[k0:k1 + 1]) == 0).sum())
+    assert (np.diff(ps[k0:k1 + 1]) == 1).all() and abs(waits * pb["dt"] - 0.5) < 0.2, waits      # 0.5 s longer
+    assert (np.diff(pc[k0:k1 + 1])[-waits:] == 0).all(), "the coach waits at the end, it does not slow down"
+    frame = lambda t: round(t / pb["dt"])
+    for s, span in list(zip(d["segments"], pb["segments"]))[n + 1:]:      # each at the first frame of its own unit,
+        at = (int(pc[span[0]]), int(ps[span[0]]))                         # or the next if the unit before ends on it
+        assert 0 <= at[0] - frame(s["coach_t"][0]) <= 1 and 0 <= at[1] - frame(s["student_t"][0]) <= 1, (s, span, at)
+
+
+def test_playback_meets_at_a_substituted_checkpoint():
+    """a substitution: the two checkpoints put against each other are drawn at the same instant although the two
+    get there at different times, and the unit ends with both at its last frames"""
+    ph = syn.phases(reps=3)
+    user = list(ph)
+    k = nth(user, 1, 1.0)
+    user[k:k + 2] = [(0.5, 0.35), (1.5, 0.0)]                             # the second repetition: shallow, quickly down
+    res, d, pb, pc, ps = playback(ph, user, cfg=replace(CFG, sigma=0.6))  # strict matching: that bottom is no match
+    assert structures(d).count("substitution") == 1, structures(d)
+    n = structures(d).index("substitution")
+    k0, k1 = pb["segments"][n]
+    o = next(o for o in res.debug["ops"] if o["kind"] == "substitute")
+    bottoms = (res.debug["eC"][o["i"]].i, res.debug["eS"][o["j"]].i)
+    assert bottoms in set(zip(pc[k0:k1 + 1].tolist(), ps[k0:k1 + 1].tolist())), (bottoms, k0, k1)
+    frame = lambda t: round(t / pb["dt"])
+    s = d["segments"][n]
+    assert (pc[k1], ps[k1]) == (frame(s["coach_t"][1]), frame(s["student_t"][1])), (pc[k1], ps[k1], s)
+
+
 # ---------------------------------------------------------------- the contract with the backend
 def test_output_format():
     res, d = compare(syn.phases(reps=3), syn.phases(reps=3, bottom=0.8, down=1.6))

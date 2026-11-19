@@ -82,13 +82,18 @@ def check_result(r, job_id):
     check_sequence(r['student'], 'student')
     check_sequence(r['coachRetargeted'], 'coachRetargeted')
     nS, nC = len(r['student']['frames']), len(r['coachRetargeted']['frames'])
-    fm = r['frameMap']                                    # frame_map.py: one coach position per user frame
-    assert len(fm['coachFrame']) == nS and len(fm['kind']) == nS
-    assert all(0 <= c <= nC - 1 for c in fm['coachFrame']), 'frameMap out of range'
-    assert all(b >= a - 1e-6 for a, b in zip(fm['coachFrame'], fm['coachFrame'][1:])), 'frameMap goes back'
-    assert set(fm['kind']) <= {'together', 'coachAhead', 'coachWaits', 'userOnly', 'outside'}
-    for s_, c_ in r['alignment']:
-        assert 0 <= s_ < nS and 0 <= c_ < nC
+    # frame_map.py: both skeletons come in playback order, frame k of one with frame k of the other. The viewer
+    # reads frameMap; the response has no alignment and no score
+    assert 'alignment' not in r and 'score' not in r
+    assert nS == nC, 'not in playback order'
+    fm = r['frameMap']
+    assert fm['coachFrame'] == list(range(nS)) and len(fm['kind']) == nS
+    assert set(fm['kind']) <= {'together', 'coachWaits', 'coachAhead'}
+    # studentRange is a time on that timeline, and a segment lasts until the next one starts: the frontend's
+    # segmentAtTime (start <= frame / fps < end) then finds one for every frame
+    shown = [s['studentRange'] for s in r['segments'] if 'studentRange' in s]
+    assert all(0 <= a < b <= nS / r['student']['fps'] + 1e-9 for a, b in shown), 'studentRange outside the timeline'
+    assert all(a[1] == b[0] for a, b in zip(shown, shown[1:])), 'a hole between two segments on the timeline'
     if 'feedback' in r:                                   # llm stage (optional)
         fb, ids = r['feedback'], {s['id'] for s in r['segments']}
         assert isinstance(fb['summary'], str) and fb['summary'].strip()
@@ -134,7 +139,7 @@ def main():
     assert j['status'] == 'done', j
     check_result(j['result'], job_id)
     print('result ok:', len(j['result']['segments']), 'segments,', len(j['result']['student']['frames']),
-          'student frames,', len(j['result']['alignment']), 'alignment pairs')
+          'frames in playback order')
 
 
 if __name__ == '__main__':

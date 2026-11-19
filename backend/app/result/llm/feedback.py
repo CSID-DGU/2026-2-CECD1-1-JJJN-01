@@ -116,8 +116,9 @@ def llm_input(result, score):
     for k, s in enumerate(result['segments']):
         u = units[k] if k < len(units) else {}
         item = dict(id=s['id'], label=s['label'], verdict=s['verdict'])
-        if 'studentRange' in s and s['studentRange'][1] > s['studentRange'][0]:
-            item['userSec'] = round(s['studentRange'][1] - s['studentRange'][0], 2)
+        st = u.get('student_t')                         # on the user's video (studentRange is the viewer's timeline)
+        if st and st[1] > st[0]:
+            item['userSec'] = round(st[1] - st[0], 2)
         if 'coachRange' in s:
             item['coachSec'] = round(s['coachRange'][1] - s['coachRange'][0], 2)
         if 'timing' in s:

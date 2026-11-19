@@ -6,6 +6,7 @@
   [3] step3_checkpoint_align  Needleman-Wunsch -> match / substitution / missing / extra, anchors
   [4] step4_frame_align       Drop-DTW between anchors
   [5] step5_segments          segments + structure / timing / pose labels  (Result.units / to_dict)
+  [6] step6_playback          what to draw at every instant to watch the two side by side  (Result.playback)
 """
 from __future__ import annotations
 
@@ -37,6 +38,11 @@ class Result:
         """non-overlapping segments on the student timeline: structure + timing + pose (step5_segments.build_units)."""
         from .step5_segments import build_units
         return build_units(self, cfg or self.cfg or Config())   # [5] segments + labels
+
+    def playback(self, cfg=None):
+        """which frame of each clip to draw at every instant of a common timeline (step6_playback.build_playback)."""
+        from .step6_playback import build_playback
+        return build_playback(self, cfg or self.cfg or Config())                # [6] playback
 
     def to_dict(self):
         units, tempo = self.units()

@@ -91,11 +91,11 @@ cd backend
 | `app/jobs/pipeline_runner.py` | 실제 분석 러너: 정규화 → 추출 → 리타겟팅 → 채점, 실패 → 사용자 문장 |
 | `app/result/result_builder.py` | 파이프라인 결과 → `AnalysisResult` JSON |
 | `app/result/pose_metrics.py` | 관절 각도 · 반복별 최저점 · 뼈 차이 방향 (`poseMetrics`, `deviations[].direction`) |
-| `app/result/frame_map.py` | 사용자 프레임마다 그릴 코치 프레임과 상태 (`frameMap`) |
+| `app/result/frame_map.py` | 3D 뷰어용 재생 순서: 두 스켈레톤의 프레임 순서, `frameMap`, 구간의 재생 시간 |
 | `app/result/llm/feedback.py` | LLM 피드백: 입력 요약, 프롬프트, Gemini 호출(모델 대체), 출력 검증 |
 | `app/debug/api_log.py` | 요청 · 응답 기록 (개발 · 디버깅용) |
 | `app/debug/demo_runner.py` | demo 러너 (`ANALYSIS_RUNNER=demo`, 분석 없이 기존 결과 반환) |
-| `app/constants.py` | 경로, 업로드 제한, 코치 영상 목록(`COACHES`), 점수 기본값 |
+| `app/constants.py` | 경로, 업로드 제한, 코치 영상 목록(`COACHES`), LLM · 자세 판정 설정값 |
 
 ## 결과 변환 규칙 (`result_builder.py`)
 
@@ -107,10 +107,20 @@ cd backend
   `direction` / `components` 가 어느 쪽으로 다른지를 붙인다 (`app/result/pose_metrics.py`, 아래).
 - `label`: 스쿼트 기준. 구간 동안 골반 높이 변화로 하강 / 상승 / 하강 · 상승 / 바닥 유지 /
   시작 자세 / 마무리 자세 / 선 자세 유지.
-- `alignment`: motion_scoring DTW 경로(drop 제외) → `[사용자 프레임, 코치 프레임]`.
-- `frameMap` (`app/result/frame_map.py`): 사용자 프레임마다 그릴 코치 프레임(소수)과 상태(together · coachAhead · coachWaits ·
-  userOnly · outside). 짝이 여러 개면 범위의 가운데, 정렬 범위 밖은 클립 처음 · 끝과 직선으로 잇고, 9프레임 이동 평균으로
-  건너뜀을 나눈다(항상 앞으로만 진행). 프론트는 있으면 이것을 쓰고 소수 프레임은 두 프레임을 섞어 그린다.
+- 재생 순서 (`app/result/frame_map.py`): `student` 와 `coachRetargeted` 는 원본 프레임 그대로가 아니라 motion_scoring 의
+  재생 순서(`Result.playback()`)대로 다시 배열해서 보낸다. 둘의 길이가 같고, k번째끼리 같이 그리면 된다.
+  - 구간마다 양쪽이 같이 출발해 각자 실제 속도로 움직이고, 먼저 끝난 쪽이 기다린다. `extra` 에서는 코치가, `missing` 에서는
+    사용자가 기다린다. 그래서 `missing` 구간에서도 코치의 동작이 재생된다.
+  - `frameMap`: 프레임 k 마다 `coachFrame`(그릴 코치 프레임, 지금은 k 그대로)과 `kind`(그 순간 누가 움직이는지:
+    together · coachWaits = 사용자만 움직임 · coachAhead = 코치만 움직임). 뷰어는 이것을 읽는다.
+  - `alignment` 는 응답에 없다(프레임 쌍 대신 `frameMap` 을 쓴다).
+  - 구간의 `studentRange` 는 이 재생 시간축 위의 시간이고, `coachRange` 는 코치 영상에서의 시간 그대로다.
+    사용자 영상에서의 원래 시간은 응답에 넣지 않는다. LLM 입력과 `poseMetrics` 는 영상의 원래 시간을 쓴다
+    (LLM 입력의 `userSec` 는 motion_scoring 의 `student_t` 에서 읽는다).
+  - `studentRange` 는 `[첫 프레임 / fps, 다음 구간의 첫 프레임 / fps]` 다. 프론트는 `시작 ≤ 프레임 / fps < 끝` 인 구간을
+    지금 구간으로 보여 주므로, 첫 구간부터는 모든 프레임에 구간이 하나씩 있다(구간 사이에 빈 프레임이 없다).
+  - 자세 비교용 프레임 쌍(DTW 경로)이 실험에서 필요하면 `build_result(..., playback=False)` 를 쓴다(영상의 원래 시간과
+    프레임 쌍 `alignment` 를 돌려준다. API 응답으로는 나가지 않는다).
 - 좌우 반전으로 채점된 경우(`mirrored`) 코치를 좌우 반전해서 보내고, 뼈 이름을 사용자 기준 좌우로 바꾼다.
 - `poseMetrics` (`app/result/pose_metrics.py`, 채점 모듈은 그대로): 같은 SMPL-22 골격에서 직접 잰 관절 측정.
   - 몸 기준 좌표: x = 사람의 오른쪽(엉덩이 축), y = 위, z = 앞(발끝 방향).

@@ -461,7 +461,7 @@ def run_case(B, U):
     real = b2n.bvh_joints
     b2n.bvh_joints = lambda p: arrays[Path(p).name]
     try:
-        return rb.build_result('validation', 'squat', Path('/nonexistent'), with_score=True)
+        return rb.build_result('validation', 'squat', Path('/nonexistent'), with_score=True, playback=False)
     finally:
         b2n.bvh_joints = real
 
