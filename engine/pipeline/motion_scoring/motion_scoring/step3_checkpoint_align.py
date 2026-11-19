@@ -8,10 +8,9 @@ from .step1_preprocess import pose_dist
 
 
 # ---------------------------------------------------------------- checkpoints
-def event_cost(a, b, w, tau, kappa, w_pos=2.0, w_ctx=1.0, trim=0.0):
-    """Dissimilarity of two events -> (content, position).
-    content  = type + pose + entry/exit direction + context (movement from the previous / to the next event)
-    position = w_pos * |progress difference|       (never capped: a substitution must be at the same place)"""
+def event_cost(a, b, w, tau, kappa, w_ctx=1.0, trim=0.0):
+    """Dissimilarity of two events in what they are (content): type + pose + entry/exit direction + context
+    (movement from the previous / to the next event). Where they are is a separate cost (visits, align_events)."""
     if a.type == b.type:
         typ = 0.0
     elif {a.type, b.type} == {"pause", "reversal"}:
@@ -23,21 +22,48 @@ def event_cost(a, b, w, tau, kappa, w_pos=2.0, w_ctx=1.0, trim=0.0):
         if np.linalg.norm(u) < 1e-6 or np.linalg.norm(v) < 1e-6:
             return 0.0
         return 1 - float(u @ v)
-    content = (typ + 2.0 * pose_dist(a.pose, b.pose, w, trim=trim) / (kappa * tau)
-               + 0.5 * dis(a.vin, b.vin) + 0.5 * dis(a.vout, b.vout)
-               + w_ctx * (dis(a.ctx_in, b.ctx_in) + dis(a.ctx_out, b.ctx_out)) / 2)
-    return content, w_pos * abs(a.s - b.s)
+    return (typ + 2.0 * pose_dist(a.pose, b.pose, w, trim=trim) / (kappa * tau)
+            + 0.5 * dis(a.vin, b.vin) + 0.5 * dis(a.vout, b.vout)
+            + w_ctx * (dis(a.ctx_in, b.ctx_in) + dis(a.ctx_out, b.ctx_out)) / 2)
+
+
+def visits(events, w, same_place):
+    """For every checkpoint of a clip: how many earlier checkpoints were at the same place (0 = the first time
+    there). Same place: closer than same_place x one movement of the clip (the largest distance between two
+    checkpoints in a row)."""
+    if len(events) < 2:
+        return [0] * len(events)
+    size = max(pose_dist(a.pose, b.pose, w) for a, b in zip(events, events[1:]))
+    places, out = [], []                               # a place: [pose of the first checkpoint there, visits so far]
+    for e in events:
+        k = next((k for k, (pose, _) in enumerate(places) if pose_dist(e.pose, pose, w) < same_place * size), None)
+        if k is None:
+            places.append([e.pose, 0])
+            k = len(places) - 1
+        out.append(places[k][1])
+        places[k][1] += 1
+    return out
 
 
 def align_events(eC, eS, w, cfg: Config, tau, kappa):
     """Two passes -> total cost, [dict(kind, i, j, cost, margin)].
+
+    A pair costs content (event_cost) + position. Position = w_pos x how many visits apart the two are (the
+    coach's first time at the bottom belongs with the student's first, the second with the second), as a share
+    of the coach's visits. So checkpoints are matched in order from the start, and what one clip does more
+    often is left over at its end (missing / extra); a clip that is merely longer does not shift every pair,
+    as comparing the share of the clip that has passed did (one repetition against three: the middle one).
+    Never capped: a substitution must be at the same place.
 
     1) order-preserving DP with matches (content < sigma) and skips only -> confident correspondences
     2) inside each gap between consecutive matches, the remaining coach and student events are paired in
        order as substitutions (same place, different action); leftovers are missing / extra.
     A substitution can therefore never be "borrowed" from another part of the clip.
     margin (matches) = cost increase of pass 1 when that pair is forbidden."""
-    cost = [[event_cost(a, b, w, tau, kappa, cfg.w_pos, cfg.w_ctx, cfg.pose_trim) for b in eS] for a in eC]
+    vc, vs = visits(eC, w, cfg.same_place), visits(eS, w, cfg.same_place)
+    per_visit = cfg.w_pos / max(max(vc, default=0), 1)
+    cost = [[(event_cost(a, b, w, tau, kappa, cfg.w_ctx, cfg.pose_trim), per_visit * abs(p - q))
+             for b, q in zip(eS, vs)] for a, p in zip(eC, vc)]
     total, ops = _nw_match_only(eC, eS, cost, cfg.sigma, cfg.gap)
     matches = [(i, j) for k, i, j, _ in ops if k == "match"]
     res = []

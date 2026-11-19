@@ -57,7 +57,7 @@ class Config:
     sigma: float = 3.0               # substitution cost  (sigma < 2*gap -> substitute beats miss+extra)
     gap: float = 2.0                 # skip cost (missing / extra event)
     margin_min: float = 0.5          # matched pair becomes an anchor only if margin > margin_min
-    w_pos: float = 2.0               # progress-difference weight
+    w_pos: float = 2.0               # position weight: cost of being as many visits apart as the coach has
     w_ctx: float = 1.0               # context weight: movement into / out of the checkpoint
 
     # --- judgement
