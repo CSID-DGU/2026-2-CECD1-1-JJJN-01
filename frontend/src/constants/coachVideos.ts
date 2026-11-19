@@ -1,50 +1,26 @@
+import squatCoachVideo from '@/posture/squat_coach.mp4';
 import type { CoachVideoOption } from '@/types/coach';
 import type { ExerciseType } from '@/types/exercise';
 
 /**
- * 기본 제공 코치 영상 목록.
- * 같은 종목이라도 타깃(변형)에 따라 다른 영상을 쓸 수 있도록 종목당 여러 개를 둔다.
- * TODO(backend): 실제 id / 썸네일 / 길이로 교체. 백엔드는 이 id 로 미리 추출해 둔
- *                코치 스켈레톤을 찾는다.
+ * 기본 제공 코치 영상. 종목당 하나만 둔다.
+ *
+ * 영상 파일은 프론트(src/posture/)에 들어 있고, 기본 영상을 고르면 그 파일을 직접 올린 영상처럼 서버로 보낸다
+ * (api/coachVideo.ts). 백엔드는 코치 영상이 항상 업로드로 온다고 본다. 그래서 id 를 백엔드와 맞출 필요가 없다.
+ * 영상이 없는 종목(데드리프트 · 벤치프레스)은 기본 영상 없이 직접 올리기만 된다.
  */
 export const COACH_VIDEOS: CoachVideoOption[] = [
   {
-    id: 'squat-highbar-full',
+    id: 'squat-default',
     exercise: 'squat',
-    title: '하이바 스쿼트',
-    description: '풀 스쿼트 · 대퇴 평행 아래까지',
-    durationSec: 4,
-  },
-  {
-    id: 'squat-lowbar',
-    exercise: 'squat',
-    title: '로우바 스쿼트',
-    description: '힙 드라이브 위주 · 파워리프팅 스타일',
-    durationSec: 4,
-  },
-  {
-    id: 'deadlift-conventional',
-    exercise: 'deadlift',
-    title: '컨벤셔널 데드리프트',
-    description: '좁은 스탠스 · 바 가까이',
+    title: '기본 스쿼트',
+    description: '기본으로 제공하는 코치 영상이에요',
+    videoUrl: squatCoachVideo,
     durationSec: 5,
-  },
-  {
-    id: 'deadlift-sumo',
-    exercise: 'deadlift',
-    title: '스모 데드리프트',
-    description: '넓은 스탠스 · 짧은 가동 범위',
-    durationSec: 5,
-  },
-  {
-    id: 'bench-flat',
-    exercise: 'bench_press',
-    title: '플랫 벤치프레스',
-    description: '견갑 고정 · 아치 유지',
-    durationSec: 4,
   },
 ];
 
-export function coachVideosFor(exercise: ExerciseType): CoachVideoOption[] {
-  return COACH_VIDEOS.filter((v) => v.exercise === exercise);
+/** 그 종목의 기본 코치 영상. 종목당 하나, 없으면 null */
+export function coachVideoFor(exercise: ExerciseType): CoachVideoOption | null {
+  return COACH_VIDEOS.find((v) => v.exercise === exercise) ?? null;
 }

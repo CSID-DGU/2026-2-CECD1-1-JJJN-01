@@ -6,7 +6,15 @@
  * 타입(src/types/analysis.ts)이 바뀌면 이 파일만 같이 고치면 된다.
  */
 
-import type { AlignmentPath, AnalysisResult, LlmFeedback, Segment, SkeletonSequence, Vec3 } from '@/types/analysis';
+import type {
+  AnalysisResult,
+  FrameMap,
+  FrameMapKind,
+  LlmFeedback,
+  Segment,
+  SkeletonSequence,
+  Vec3,
+} from '@/types/analysis';
 import type { ExerciseType } from '@/types/exercise';
 
 export const MOCK_JOINT_NAMES = [
@@ -145,20 +153,44 @@ function buildSequence(spec: MotionSpec): { seq: SkeletonSequence; phaseFrames: 
   return { seq: { jointNames: MOCK_JOINT_NAMES, fps: spec.fps, frames }, phaseFrames };
 }
 
-/** 구간별로 사용자 프레임 ↔ 코치 프레임을 선형으로 잇는다. */
-function buildAlignment(student: Array<[number, number]>, coach: Array<[number, number]>): AlignmentPath {
-  const path: AlignmentPath = [];
+interface Playback {
+  /** 재생 프레임 k 에 그릴 원본 프레임 번호 */
+  student: number[];
+  coach: number[];
+  /** 구간별 재생 프레임 [시작, 끝) */
+  phaseFrames: Array<[number, number]>;
+}
+
+/**
+ * 실제 백엔드(app/result/frame_map.py)처럼 두 시퀀스를 같은 길이의 "재생 순서"로 맞춘다.
+ * 구간마다 둘 다 자기 속도로 움직이고, 먼저 끝난 쪽은 마지막 자세로 기다린다.
+ */
+function buildPlayback(student: Array<[number, number]>, coach: Array<[number, number]>): Playback {
+  const out: Playback = { student: [], coach: [], phaseFrames: [] };
   for (let p = 0; p < student.length; p++) {
     const [s0, s1] = student[p];
     const [c0, c1] = coach[p];
-    const sn = s1 - s0;
-    const cn = c1 - c0;
-    for (let i = 0; i < sn; i++) {
-      const c = c0 + Math.min(cn - 1, Math.round((i / Math.max(sn - 1, 1)) * (cn - 1)));
-      path.push([s0 + i, c]);
+    const start = out.student.length;
+    const n = Math.max(s1 - s0, c1 - c0);
+    for (let i = 0; i < n; i++) {
+      out.student.push(Math.min(s0 + i, s1 - 1));
+      out.coach.push(Math.min(c0 + i, c1 - 1));
     }
+    out.phaseFrames.push([start, start + n]);
   }
-  return path;
+  return out;
+}
+
+/** 재생 프레임마다 누가 움직이는지. 앞 프레임과 원본 프레임 번호가 달라졌으면 움직인 것 */
+function buildFrameMap(pb: Playback): FrameMap {
+  const kind: FrameMapKind[] = pb.student.map((_, k) => {
+    if (k === 0) return 'together';
+    const coachMoves = pb.coach[k] !== pb.coach[k - 1];
+    const userMoves = pb.student[k] !== pb.student[k - 1];
+    if (coachMoves === userMoves) return 'together';
+    return coachMoves ? 'coachAhead' : 'coachWaits';
+  });
+  return { coachFrame: pb.student.map((_, k) => k), kind };
 }
 
 /* ---------------------------------------------------------------- */
@@ -206,9 +238,12 @@ export function buildMockResult(exercise: ExerciseType, jobId: string): Analysis
 
   const coach = buildSequence(coachSpec);
   const student = buildSequence(studentSpec);
-  const alignment = buildAlignment(student.phaseFrames, coach.phaseFrames);
+  const playback = buildPlayback(student.phaseFrames, coach.phaseFrames);
+  const frameMap = buildFrameMap(playback);
 
   const toSec = (range: [number, number]): [number, number] => [range[0] / fps, range[1] / fps];
+  // studentRange 는 재생 시간축, coachRange 는 코치 원본 시각 (실제 백엔드와 같다)
+  const shown = playback.phaseFrames.map(toSec);
   const labels = SEGMENT_LABELS[exercise];
 
   const segments: Segment[] = [
@@ -216,7 +251,7 @@ export function buildMockResult(exercise: ExerciseType, jobId: string): Analysis
       id: 'seg-0',
       label: labels[0],
       verdict: 'match',
-      studentRange: toSec(student.phaseFrames[0]),
+      studentRange: shown[0],
       coachRange: toSec(coach.phaseFrames[0]),
       timing: { label: 'ok', ratio: 1.0 },
       deviations: [],
@@ -225,11 +260,16 @@ export function buildMockResult(exercise: ExerciseType, jobId: string): Analysis
       id: 'seg-1',
       label: labels[1],
       verdict: 'match',
-      studentRange: toSec(student.phaseFrames[1]),
+      studentRange: shown[1],
       coachRange: toSec(coach.phaseFrames[1]),
       timing: { label: 'slow', ratio: 1.2 },
       deviations: [
-        { bone: 'torso', angleDiffDeg: 15.9 },
+        {
+          bone: 'torso',
+          angleDiffDeg: 15.9,
+          direction: 'forward',
+          components: { up: -4.1, forward: 15.3, right: 0.4 },
+        },
         { bone: 'left_shin', angleDiffDeg: 6.1 },
       ],
     },
@@ -237,27 +277,38 @@ export function buildMockResult(exercise: ExerciseType, jobId: string): Analysis
       id: 'seg-2',
       label: labels[2],
       verdict: 'missing',
-      studentRange: toSec(student.phaseFrames[2]),
+      studentRange: shown[2],
       coachRange: toSec(coach.phaseFrames[2]),
+      hold: { coachSec: 0.5, userSec: 0.15, ratio: 0.3 },
       deviations: [],
     },
     {
       id: 'seg-3',
       label: labels[3],
       verdict: 'match',
-      studentRange: toSec(student.phaseFrames[3]),
+      studentRange: shown[3],
       coachRange: toSec(coach.phaseFrames[3]),
       timing: { label: 'slow', ratio: 1.5 },
       deviations: [
-        { bone: 'torso', angleDiffDeg: 12.4 },
-        { bone: 'left_thigh', angleDiffDeg: 8.2 },
+        {
+          bone: 'torso',
+          angleDiffDeg: 12.4,
+          direction: 'forward',
+          components: { up: -3.0, forward: 12.0, right: 0.2 },
+        },
+        {
+          bone: 'left_thigh',
+          angleDiffDeg: 8.2,
+          direction: 'inward',
+          components: { up: 1.1, forward: 2.3, outward: -7.8 },
+        },
       ],
     },
     {
       id: 'seg-4',
       label: labels[4],
       verdict: 'match',
-      studentRange: toSec(student.phaseFrames[4]),
+      studentRange: shown[4],
       coachRange: toSec(coach.phaseFrames[4]),
       timing: { label: 'ok', ratio: 1.0 },
       deviations: [],
@@ -285,14 +336,10 @@ export function buildMockResult(exercise: ExerciseType, jobId: string): Analysis
   return {
     jobId,
     exercise,
-    score: {
-      total: 72,
-      bySegment: { 'seg-0': 96, 'seg-1': 71, 'seg-2': 38, 'seg-3': 68, 'seg-4': 93 },
-    },
     segments,
-    student: student.seq,
-    coachRetargeted: coach.seq,
-    alignment,
+    student: { ...student.seq, frames: playback.student.map((i) => student.seq.frames[i]) },
+    coachRetargeted: { ...coach.seq, frames: playback.coach.map((i) => coach.seq.frames[i]) },
+    frameMap,
     feedback,
   };
 }

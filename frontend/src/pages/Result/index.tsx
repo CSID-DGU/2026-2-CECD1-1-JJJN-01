@@ -10,9 +10,8 @@ import { useAnalysis } from '@/context/useAnalysis';
 import { useFramePlayer } from '@/hooks/useFramePlayer';
 import type { Segment } from '@/types/analysis';
 import { segmentAtTime } from '@/utils/segments';
-import { buildAlignmentLookup, secondsToFrame } from '@/utils/skeleton';
+import { secondsToFrame } from '@/utils/skeleton';
 import { FeedbackPanel } from './components/FeedbackPanel';
-import { ScoreCard } from './components/ScoreCard';
 import { SegmentDetail } from './components/SegmentDetail';
 import { SegmentTimeline } from './components/SegmentTimeline';
 import { FrameControls } from './components/SkeletonViewer/FrameControls';
@@ -20,7 +19,7 @@ import { SkeletonViewer, type ViewerLayout } from './components/SkeletonViewer';
 //example을 보여주기 위한 코드(주석) 추가
 /**
  * 4단계: 결과.
- * 점수 → 3D 뷰어(나 vs 리타겟팅된 코치) → 구간 타임라인 → 구간 상세 → 피드백.
+ * 3D 뷰어(나 vs 리타겟팅된 코치) → 구간 타임라인 → 구간 상세 → 피드백.
  * 타임라인·피드백에서 구간을 누르면 뷰어가 그 구간으로 간다.
  */
 export function ResultPage() {
@@ -33,11 +32,6 @@ export function ResultPage() {
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [layout, setLayout] = useState<ViewerLayout>('overlay');
-
-  const lookup = useMemo(
-    () => (result ? buildAlignmentLookup(result.alignment, frameCount) : null),
-    [result, frameCount],
-  );
 
   const currentSec = player.frame / fps;
   const playingSegment = useMemo(
@@ -64,8 +58,10 @@ export function ResultPage() {
   const activeSegment = player.isPlaying ? playingSegment : (selectedSegment ?? playingSegment);
   const highlightBones = new Set(activeSegment?.deviations.map((d) => d.bone) ?? []);
 
-  const coachFrameCount = coachRetargeted.frames.length;
-  const coachFrame = lookup ? Math.min(lookup[player.frame] ?? 0, Math.max(coachFrameCount - 1, 0)) : 0;
+  // 두 스켈레톤은 같은 길이의 재생 순서로 온다. 재생 프레임마다 그릴 코치 프레임과
+  // 누가 움직이는지는 백엔드가 frameMap 으로 정해 준다
+  const coachFrame = result.frameMap.coachFrame[player.frame] ?? player.frame;
+  const frameKind = result.frameMap.kind[player.frame] ?? 'together';
   const totalSec = Math.max(frameCount - 1, 0) / fps;
 
   return (
@@ -88,16 +84,13 @@ export function ResultPage() {
       />
 
       <main className="flex flex-1 flex-col gap-8 px-5 pt-3 pb-6">
-        <section>
-          <ScoreCard score={result.score} />
-        </section>
-
         <section className="flex flex-col gap-3">
           <SkeletonViewer
             student={student}
             coach={coachRetargeted}
             studentFrame={player.frame}
             coachFrame={coachFrame}
+            frameKind={frameKind}
             highlightBones={highlightBones}
             layout={layout}
             onLayoutChange={setLayout}
@@ -119,7 +112,7 @@ export function ResultPage() {
           />
           <div className="mt-4">
             {activeSegment ? (
-              <SegmentDetail segment={activeSegment} score={result.score.bySegment?.[activeSegment.id]} />
+              <SegmentDetail segment={activeSegment} />
             ) : (
               <p className="text-[13px] text-ink-faint">구간을 눌러 자세한 내용을 확인해 보세요.</p>
             )}
