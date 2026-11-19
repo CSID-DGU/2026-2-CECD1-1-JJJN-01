@@ -89,12 +89,18 @@ def load_npz(path: str | Path, up="y") -> Track:
 
 
 # ---------------------------------------------------------------- Savitzky-Golay with derivatives
-def savgol(t, x, window_s, order):
-    """Smoothing + 1st + 2nd derivative along axis 0 (window in seconds; uses the median dt)."""
+def sg_coeffs(t, window_s, order):
+    """Savitzky-Golay fit: P [order + 1, window] (row d = coefficients of the d-th polynomial term at the
+    window centre) and the half width in frames (window in seconds; uses the median dt)."""
     dt = float(np.median(np.diff(t)))
     half = max(order, int(round(window_s / dt / 2)))
     xs = np.arange(-half, half + 1) * dt
-    P = np.linalg.pinv(np.vander(xs, order + 1, increasing=True))
+    return np.linalg.pinv(np.vander(xs, order + 1, increasing=True)), half
+
+
+def savgol(t, x, window_s, order):
+    """Smoothing + 1st + 2nd derivative along axis 0 (window in seconds; uses the median dt)."""
+    P, half = sg_coeffs(t, window_s, order)
     flat = x.reshape(len(x), -1)
     pad = np.pad(flat, ((half, half), (0, 0)), mode="edge")
     out = []
@@ -105,10 +111,29 @@ def savgol(t, x, window_s, order):
     return out
 
 
-class Clip:
-    """Preprocessed motion. Attributes are per frame unless noted."""
+def noise_speed(t, raw, smooth, w, cfg: Config):
+    """Speed (deg/s) that measurement noise alone gives a motionless body.
 
-    def __init__(self, track: Track, cfg: Config, bone_weights=None):
+    White-noise model: the smoothing residual (raw - smooth) of a least-squares fit has variance
+    s^2 (1 - h0), h0 = centre coefficient of the smoothing kernel, which gives the noise variance s^2 per
+    bone coordinate (median absolute deviation, so movement does not inflate it); the derivative estimate
+    then has variance s^2 * sum(k^2), k = derivative kernel. Slow jitter is not white and is only partly
+    covered: on the example clips this explains 55-65 % of the speed seen while standing still, and all
+    of it for noise added per frame."""
+    P, half = sg_coeffs(t, cfg.sg_window_s, cfg.sg_order)
+    resid = raw - smooth                                                   # [N, K, 3]
+    mad = np.median(np.abs(resid - np.median(resid, axis=0)), axis=0) * 1.4826
+    var = mad ** 2 / max(1.0 - float(P[0][half]), 1e-9)                    # per bone coordinate
+    per_bone = var.sum(1) * float((P[1] ** 2).sum())                       # E |d bone / dt|^2, (rad/s)^2
+    return float(np.degrees(np.sqrt((per_bone * w).sum() / w.sum())))
+
+
+class Clip:
+    """Preprocessed motion. Attributes are per frame unless noted.
+    noise_floor: set the speed levels as if the noise speed (deg/s) were at least this. score() passes the
+    higher of the two clips' noise speeds, so that "still" means the same in both."""
+
+    def __init__(self, track: Track, cfg: Config, bone_weights=None, noise_floor=None):
         self.track = track
         self.t = track.t
         self.names = track.bone_names
@@ -132,9 +157,20 @@ class Clip:
         wsum = self.w.sum()
         sq = (np.linalg.norm(db, axis=2) ** 2 * self.w).sum(1) / wsum
         self.speed = np.degrees(np.sqrt(sq))                           # deg/s (RMS over bones)
+        # measurement noise and motion add in quadrature: remove the noise part, so that "still" means the
+        # same thing for a clean and a jittery skeleton
+        self.noise = noise_speed(self.t, raw, b, self.w, cfg) if cfg.noise_gain > 0 else 0.0
+        moving = np.sqrt(np.clip(self.speed ** 2 - self.noise ** 2, 0.0, None))
         # tempo-invariant normalisation by a near-peak speed (p97 is insensitive to how long the clip stands still)
-        self.vref = float(np.percentile(self.speed, cfg.v_ref_pct))
-        self.v = self.speed / max(self.vref, 1e-9)
+        self.vref = float(np.percentile(moving, cfg.v_ref_pct))
+        self.v = moving / max(self.vref, 1e-9)
+        # speed levels of this clip (still / moving / a movement's peak): what is left of the noise after
+        # the subtraction still fluctuates, so "still" never goes below noise_gain x the noise speed and the
+        # other two keep their distance from it (cfg.v_low / v_exit / v_peak for clean input)
+        noise = max(self.noise, noise_floor or 0.0)
+        self.v_low = max(cfg.v_low, cfg.noise_gain * noise / max(self.vref, 1e-9))
+        self.v_exit = self.v_low * cfg.v_exit / cfg.v_low
+        self.v_peak = max(cfg.v_peak, self.v_exit)
         # tangential acceleration d|v|/dt = (v . a) / |v|
         acc =np.degrees(((db * ddb).sum(2) * self.w).sum(1) / wsum / np.maximum(np.radians(self.speed), 1e-9))
         self.acc = acc                                                 # deg/s^2
@@ -145,7 +181,7 @@ class Clip:
         step = np.degrees(np.linalg.norm(np.diff(self.b, axis=0).reshape(len(self.t) - 1, -1), axis=1))
         # remove the jitter floor (high percentile of the per-frame step while nearly still), so that still
         # periods and small / slow movements are not stretched by accumulated noise
-        still = (self.v[1:] < cfg.v_low) & (self.v[:-1] < cfg.v_low)
+        still = (self.v[1:] < self.v_low) & (self.v[:-1] < self.v_low)
         floor = float(np.percentile(step[still], cfg.arc_floor_pct)) if still.any() else 0.0
         step = np.clip(step - floor, 0, None)
         self._step = step
