@@ -64,7 +64,6 @@ def check_pose_metrics(pm, seg_ids):
 
 def check_result(r, job_id):
     assert r['jobId'] == job_id and r['exercise'] == 'squat'
-    assert num(r['score']['total']) and 0 <= r['score']['total'] <= 100
     for s in r['segments']:
         assert isinstance(s['id'], str) and isinstance(s['label'], str) and s['verdict'] in VERDICTS
         for k in ('studentRange', 'coachRange'):

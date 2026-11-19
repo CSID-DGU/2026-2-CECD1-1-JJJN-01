@@ -65,7 +65,6 @@ def summarize(result):
     return dict(
         bytes=len(json.dumps(result, ensure_ascii=False).encode()),
         fields=list(result.keys()),
-        score=result.get('score'),
         segments=dict(
             count=len(segs),
             verdicts=dict(Counter(s['verdict'] for s in segs)),

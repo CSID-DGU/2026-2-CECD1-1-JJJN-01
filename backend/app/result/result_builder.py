@@ -17,13 +17,13 @@ Mapping
              left/right joints swapped) and deviation bones are named on the user's own side
   pose       pose_metrics.py: deviations get direction / components (signed, body frame), and
              poseMetrics holds joint angles at the squat bottoms (per repetition) and standing
-  score      placeholder total (constants.DEFAULT_SCORE_TOTAL); feedback is added by the llm stage
+  feedback   not here: added by the llm stage. There is no total score (the formula is not decided).
 """
 import sys
 
 import numpy as np
 
-from ..constants import DEFAULT_SCORE_TOTAL, PIPELINE_REPO
+from ..constants import PIPELINE_REPO
 from .pose_metrics import Body, pose_metrics, signed_deviations
 from .frame_map import frame_map
 
@@ -148,7 +148,6 @@ def build_result(job_id, exercise, retarget_dir, with_score=False):
     signed_deviations(segments, body_u, body_c, alignment, d['mirrored'])
     result = dict(
         jobId=job_id, exercise=exercise,
-        score=dict(total=DEFAULT_SCORE_TOTAL),
         segments=segments,
         student=skeleton_sequence(user, names, fps_u),
         coachRetargeted=skeleton_sequence(coach, names, fps_c, mirror=d['mirrored']),
