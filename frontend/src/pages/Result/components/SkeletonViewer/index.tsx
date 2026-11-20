@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Grid, OrbitControls } from '@react-three/drei';
 import type { FrameMapKind, SkeletonSequence } from '@/types/analysis';
-import { WAITING_LABEL } from '@/utils/segments';
+// import { WAITING_LABEL } from '@/utils/segments'; // "나만/코치만 움직이는 중" 문구 숨김
 import { computeBounds, resolveBones, sampleFrame } from '@/utils/skeleton';
 import { cn } from '@/utils/cn';
 import { SkeletonMesh } from './SkeletonMesh';
@@ -37,7 +37,7 @@ export function SkeletonViewer({
   coach,
   studentFrame,
   coachFrame,
-  frameKind,
+  // frameKind, // "나만/코치만 움직이는 중" 문구 숨김
   highlightBones,
   layout,
   onLayoutChange,
@@ -100,7 +100,7 @@ export function SkeletonViewer({
       </div>
 
       <div className="relative aspect-square w-full touch-none">
-        {/* 한쪽이 서서 기다리는 구간이 멈춘 것처럼 보이지 않게 */}
+        {/* 한쪽이 서서 기다리는 구간이 멈춘 것처럼 보이지 않게. 일단 숨김 (다시 켤 때 아래 주석과 import · frameKind 를 되살린다. 이게 왜 필요한지 나중에 생각해보기)
         {frameKind !== 'together' && (
           <span className="pointer-events-none absolute bottom-3 left-3 z-10 flex items-center gap-1.5 rounded-full bg-surface/90 px-2.5 py-1 text-[12px] font-semibold text-ink-muted">
             <span
@@ -110,6 +110,7 @@ export function SkeletonViewer({
             {WAITING_LABEL[frameKind]}
           </span>
         )}
+        */}
         <Canvas camera={{ position: cameraPosition, fov: 35, near: 0.05, far: 50 }} dpr={[1, 2]}>
           <ambientLight intensity={0.9} />
           <directionalLight position={[3, 5, 4]} intensity={0.9} />

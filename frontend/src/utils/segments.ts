@@ -5,9 +5,9 @@ export type Tone = 'neutral' | 'good' | 'bad' | 'warn' | 'slow' | 'fast';
 
 export const VERDICT_LABEL: Record<SegmentVerdict, string> = {
   match: '일치',
-  missing: '누락',
-  extra: '추가',
-  substitute: '대체',
+  missing: '빠진 동작',
+  extra: '추가 동작',
+  substitute: '다른 동작',
 };
 
 export const VERDICT_TONE: Record<SegmentVerdict, Tone> = {

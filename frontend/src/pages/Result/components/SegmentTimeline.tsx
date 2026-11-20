@@ -1,6 +1,6 @@
 import type { Segment } from '@/types/analysis';
 import { cn } from '@/utils/cn';
-import { segmentTone, VERDICT_LABEL, type Tone } from '@/utils/segments';
+import { segmentTone, TIMING_LABEL, VERDICT_LABEL, type Tone } from '@/utils/segments';
 
 interface SegmentTimelineProps {
   segments: Segment[];
@@ -33,6 +33,31 @@ const DOT_CLASS: Record<Tone, string> = {
 /** 블록 폭이 전체의 이 비율보다 좁으면 글자를 넣지 않는다 (잘린 글자보다 빈 블록이 낫다) */
 const LABEL_MIN_RATIO = 0.16;
 
+/** 범례 순서 */
+const LEGEND_ORDER: Tone[] = ['good', 'slow', 'fast', 'bad', 'warn', 'neutral'];
+
+/** 범례에 쓸 말. segmentTone 과 같은 기준: 일치 구간은 타이밍, 나머지는 판정 */
+function legendLabel(segment: Segment): string {
+  if (segment.verdict !== 'match') return VERDICT_LABEL[segment.verdict];
+  if (segment.timing && segment.timing.label !== 'ok') return TIMING_LABEL[segment.timing.label];
+  return VERDICT_LABEL.match;
+}
+
+/** 이 결과에 실제로 나온 색만, 색마다 뜻을 모아서 (예: 주황 = "추가 동작 · 다른 동작") */
+function buildLegend(segments: Segment[]): Array<{ tone: Tone; label: string }> {
+  const byTone = new Map<Tone, Set<string>>();
+  for (const segment of segments) {
+    const tone = segmentTone(segment);
+    const labels = byTone.get(tone) ?? new Set<string>();
+    labels.add(legendLabel(segment));
+    byTone.set(tone, labels);
+  }
+  return LEGEND_ORDER.filter((tone) => byTone.has(tone)).map((tone) => ({
+    tone,
+    label: [...(byTone.get(tone) ?? [])].join(' · '),
+  }));
+}
+
 /**
  * 재생 시간축(뷰어의 슬라이더와 같은 시간) 위에 구간을 늘어놓는다.
  * 블록의 위치 · 길이는 재생에서 그 구간이 차지한 시간 그대로라서, 재생선이 블록 경계를 지날 때 구간이 바뀐다.
@@ -41,9 +66,19 @@ const LABEL_MIN_RATIO = 0.16;
 export function SegmentTimeline({ segments, totalSec, currentSec, selectedId, onSelect }: SegmentTimelineProps) {
   const safeTotal = totalSec > 0 ? totalSec : 1;
   const playheadPct = Math.min(Math.max((currentSec / safeTotal) * 100, 0), 100);
+  const legend = buildLegend(segments);
 
   return (
     <div>
+      <ul className="mb-3 flex flex-wrap gap-x-3 gap-y-1.5" aria-label="색 설명">
+        {legend.map(({ tone, label }) => (
+          <li key={tone} className="flex items-center gap-1.5 text-[12px] text-ink-muted">
+            <span className={cn('size-2 rounded-full', DOT_CLASS[tone])} aria-hidden="true" />
+            {label}
+          </li>
+        ))}
+      </ul>
+
       <div className="relative">
         <div
           className="relative h-9 w-full overflow-hidden rounded-[10px] bg-page"
