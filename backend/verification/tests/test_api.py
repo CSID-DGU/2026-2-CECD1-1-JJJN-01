@@ -74,7 +74,7 @@ def check_result(r, job_id):
             assert s['verdict'] == 'match' and s['timing']['label'] in TIMING and num(s['timing']['ratio'])
         for dv in s['deviations']:
             assert dv['bone'] in FRONT_BONES and num(dv['angleDiffDeg']), dv
-            if 'direction' in dv:                         # pose_metrics.signed_deviations
+            if 'direction' in dv:                         # result_builder.deviations
                 assert dv['direction'] in DIRECTIONS and all(num(v) for v in dv['components'].values()), dv
     starts = [s['studentRange'][0] for s in r['segments'] if 'studentRange' in s]
     check_pose_metrics(r['poseMetrics'], {s['id'] for s in r['segments']})

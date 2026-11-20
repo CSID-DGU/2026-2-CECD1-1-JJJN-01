@@ -1,4 +1,4 @@
-"""Joint angles, squat key poses and signed bone differences from the two skeletons.
+"""Joint angles and squat key poses from the two skeletons.
 
 motion_scoring compares bone directions only (the unsigned angle between the user's and the coach's bone,
 no joint angles): it was designed for an LLM that also watches the video. The app sends JSON only, so the
@@ -25,10 +25,8 @@ Key poses (squat; values are medians over +- 0.1 s around the frame)
             POSE_SAME_RATIO; returned with legLengthCm so the frontend / LLM use the same numbers
   If the scorer matched the mirrored user, coach left / right are swapped onto the user's sides.
 
-Signed bone differences (segment deviations)
-  over the aligned frame pairs of the segment: mean of (user bone - coach bone), unit vectors in each
-  person's own body frame, split into up / forward / outward (left/right for torso and head) and scaled
-  so the components add up in quadrature to the deviation angle motion_scoring reports.
+The bone differences of a segment (deviations) are not measured here: motion_scoring gives them with their
+direction (result_builder.deviations).
 """
 import numpy as np
 from scipy.signal import find_peaks
@@ -36,13 +34,6 @@ from scipy.signal import find_peaks
 from .. import constants
 
 SIDES = ('left', 'right')
-BONE_JOINTS = {                                  # frontend bone -> (from, to) SMPL-22 joints, as motion_scoring
-    'left_thigh': ('left_hip', 'left_knee'), 'right_thigh': ('right_hip', 'right_knee'),
-    'left_shin': ('left_knee', 'left_ankle'), 'right_shin': ('right_knee', 'right_ankle'),
-    'torso': ('pelvis', 'neck'), 'head': ('neck', 'head'),
-    'left_upper_arm': ('left_shoulder', 'left_elbow'), 'right_upper_arm': ('right_shoulder', 'right_elbow'),
-    'left_forearm': ('left_elbow', 'left_wrist'), 'right_forearm': ('right_elbow', 'right_wrist'),
-}
 UP = np.array([0., 1., 0.])
 # lengths are shares of the leg length (hip -> knee -> ankle), so a child and an adult are judged alike;
 # the cm in the comments are for an 85 cm leg
@@ -56,13 +47,6 @@ def _unit(v):
 
 def _angle(a, b):
     return np.degrees(np.arccos(np.clip((_unit(a) * _unit(b)).sum(-1), -1., 1.)))
-
-
-def _swap(name):
-    for a, b in (('left', 'right'), ('right', 'left')):
-        if name.startswith(a):
-            return b + name[len(a):]
-    return name
 
 
 class Body:
@@ -91,12 +75,6 @@ class Body:
         m['kneeWidth'] = (np.linalg.norm(j('left_knee') - j('right_knee'), axis=1)
                           / np.maximum(np.linalg.norm(j('left_ankle') - j('right_ankle'), axis=1), 1e-6))
         self.m = m
-
-    def bone(self, name):
-        """Unit bone vectors in the body frame [T, 3] (x right, y up, z forward)."""
-        a, b = BONE_JOINTS[name]
-        v = _unit(self.J[:, self.N[b]] - self.J[:, self.N[a]])
-        return np.stack([(v * self.right).sum(1), v[:, 1], (v * self.fwd).sum(1)], 1)
 
     def bottoms(self):
         rng = float(np.percentile(self.pelvis, 95) - np.percentile(self.pelvis, 5))
@@ -247,46 +225,3 @@ def _summary(bottoms):
             lo, hi = round(min(v), nd), round(max(v), nd)
             out[k][who] = [int(lo), int(hi)] if nd == 0 else [lo, hi]
     return dict(reps=len(bottoms), **out)
-
-
-def signed_deviations(segments, user, coach, alignment, mirrored):
-    """Add direction / components to each segment deviation (in place). Bones are named on the user's side."""
-    al = np.asarray(alignment, int).reshape(-1, 2)
-    cache = {}
-    def bones(body, name, key):
-        if (key, name) not in cache:
-            cache[key, name] = body.bone(name)
-        return cache[key, name]
-    for s in segments:
-        if not s['deviations'] or 'coachRange' not in s or not len(al):
-            continue
-        i0, i1 = (int(round(t * coach.fps)) for t in s['coachRange'])
-        sel = al[(al[:, 1] >= i0) & (al[:, 1] <= i1)]
-        if not len(sel):
-            continue
-        for d in s['deviations']:
-            name = d['bone']
-            if name not in BONE_JOINTS:
-                continue
-            ub = bones(user, name, 'u')[sel[:, 0]]
-            cbn = _swap(name) if mirrored else name
-            cbv = bones(coach, cbn, 'c')[sel[:, 1]].copy()
-            if mirrored:
-                cbv[:, 0] *= -1
-            m = (ub - cbv).mean(0)
-            norm = float(np.linalg.norm(m))
-            if norm < 1e-6:
-                continue
-            comp = m / norm * float(d['angleDiffDeg'])
-            lat = comp[0] if name.startswith('right') else -comp[0]      # + = away from the body midline
-            c = dict(up=round(float(comp[1]), 1), forward=round(float(comp[2]), 1))
-            if name.startswith(('left', 'right')):
-                c['outward'] = round(float(lat), 1)
-            else:
-                c['right'] = round(float(comp[0]), 1)
-            axis, val = max(c.items(), key=lambda kv: abs(kv[1]))
-            d['direction'] = {('up', True): 'up', ('up', False): 'down', ('forward', True): 'forward',
-                              ('forward', False): 'backward', ('outward', True): 'outward',
-                              ('outward', False): 'inward', ('right', True): 'right',
-                              ('right', False): 'left'}[axis, val > 0]
-            d['components'] = c

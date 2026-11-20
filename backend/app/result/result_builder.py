@@ -10,25 +10,25 @@ Mapping
              each sequence's first-frame pelvis moved to x = z = 0 (overlay view)
   segments   motion_scoring units: structure -> verdict (substitution -> substitute),
              student_t / coach_t -> ranges, timing as motion_scoring gives it (label slow/fast,
-             ratio relative to the global tempo; no label -> ok), pose.worst -> deviations
+             ratio relative to the global tempo; no label -> ok), bones -> deviations (see deviations)
   label      squat only: from the pelvis height over the segment (see squat_label)
   playback   both skeletons are sent in the scorer's playback order, so frame k of one belongs with
              frame k of the other: frameMap = the coach frame to draw and who moves at k, and a
              segment's studentRange = its time on that timeline. See frame_map.py. The scorer's own
-             frame pairs are only used here, for the pose values: the response has no `alignment`
-             (and no `score`).
+             frame pairs are only used here, to pair the repetitions of poseMetrics: the response has no
+             `alignment` (and no `score`).
   mirrored   if the scorer matched the mirrored user, the coach is shown mirrored (x -> -x,
              left/right joints swapped) and deviation bones are named on the user's own side
-  pose       pose_metrics.py: deviations get direction / components (signed, body frame), and
-             poseMetrics holds joint angles at the squat bottoms (per repetition) and standing
+  pose       pose_metrics.py: poseMetrics holds joint angles at the squat bottoms (per repetition) and
+             standing
   feedback   not here: added by the llm stage. There is no total score (the formula is not decided).
 """
 import sys
 
 import numpy as np
 
-from ..constants import PIPELINE_REPO
-from .pose_metrics import Body, pose_metrics, signed_deviations
+from ..constants import PIPELINE_REPO, POSE_SAME_DEG
+from .pose_metrics import Body, pose_metrics
 from .frame_map import in_playback_order
 
 if str(PIPELINE_REPO) not in sys.path:
@@ -51,6 +51,12 @@ FRONT_BONES = {
     'l_forearm': 'left_forearm', 'r_forearm': 'right_forearm',
 }
 VERDICT = {'match': 'match', 'missing': 'missing', 'extra': 'extra', 'substitution': 'substitute'}
+# the bones an exercise is judged by (motion_scoring names): a segment's deviations name these first
+MAIN_BONES = {'squat': ('trunk', 'l_thigh', 'r_thigh', 'l_shank', 'r_shank')}
+MAX_DEVIATIONS = 2                       # per segment
+# deviations[].direction: the largest component of the difference and its sign
+DIRECTION = {('up', True): 'up', ('up', False): 'down', ('forward', True): 'forward', ('forward', False): 'backward',
+             ('outward', True): 'outward', ('outward', False): 'inward', ('right', True): 'right', ('right', False): 'left'}
 
 
 def swap_side(name):
@@ -95,12 +101,30 @@ def squat_label(y, t0, t1, fps, first, last):
     return '선 자세 유지'
 
 
-def build_segments(units, mirrored, label_fn):
+def deviations(bones, exercise):
+    """The bones of a match unit (motion_scoring `bones`: per bone the largest difference in the unit and which
+    way it goes) -> the segment's deviations: the bones that differ by at least POSE_SAME_DEG, the exercise's
+    main bones before the others, the largest first, at most MAX_DEVIATIONS. A bone is named on the user's own
+    side (student_bone: the other side if the scorer matched the mirrored user).
+    angleDiffDeg is the angle between the two bones (never negative); components splits it into up / forward /
+    outward (away from the body's midline; for the torso and the head: right = the user's right), and
+    direction names the largest of them."""
+    main = MAIN_BONES.get(exercise, ())
+    out = []
+    for b in sorted((b for b in bones if b['deg'] >= POSE_SAME_DEG), key=lambda b: (b['bone'] not in main, -b['deg'])):
+        comp = {'outward' if axis == 'out' else axis: float(v) for axis, v in b['dir'].items()}
+        axis, value = max(comp.items(), key=lambda kv: abs(kv[1]))
+        out.append(dict(bone=FRONT_BONES.get(b['student_bone'], b['student_bone']), angleDiffDeg=float(b['deg']),
+                        direction=DIRECTION[axis, value > 0], components=comp))
+    return out[:MAX_DEVIATIONS]
+
+
+def build_segments(units, exercise, label_fn):
     out = []
     for k, u in enumerate(units):
         st, ct = u.get('student_t'), u.get('coach_t')
         seg = dict(id=f'seg-{k}', label=label_fn(u, k == 0, k == len(units) - 1),
-                   verdict=VERDICT[u['structure']], deviations=[])
+                   verdict=VERDICT[u['structure']], deviations=deviations(u.get('bones') or [], exercise))
         if st:                     # missing: zero-length [t, t] at the user's time (timeline position)
             seg['studentRange'] = [float(st[0]), float(st[1])]
         if ct:
@@ -111,10 +135,6 @@ def build_segments(units, mirrored, label_fn):
         if u.get('hold'):          # coach pause vs the student's slow-down there (motion_scoring short holds)
             h = u['hold']
             seg['hold'] = dict(coachSec=float(h['coach_s']), userSec=float(h['student_s']), ratio=float(h['ratio']))
-        for w in (u.get('pose') or {}).get('worst', []):
-            bone = FRONT_BONES.get(w['bone'], w['bone'])
-            seg['deviations'].append(dict(bone=swap_side(bone) if mirrored else bone,
-                                          angleDiffDeg=float(w['diff_deg'])))
         out.append(seg)
     return out
 
@@ -150,9 +170,8 @@ def build_result(job_id, exercise, retarget_dir, with_score=False, playback=True
         return '구간'
 
     alignment = sorted({(int(j), int(i)) for kind, i, j in res.debug['path'] if kind not in ('drop_c', 'drop_s')})
-    segments = build_segments(d['segments'], d['mirrored'], label)
+    segments = build_segments(d['segments'], exercise, label)
     body_u, body_c = Body(user, names, fps_u), Body(coach, names, fps_c)
-    signed_deviations(segments, body_u, body_c, alignment, d['mirrored'])
     metrics = pose_metrics(body_u, body_c, alignment, segments, d['mirrored'])     # all on the videos' own times
     student = skeleton_sequence(user, names, fps_u)
     shown_coach = skeleton_sequence(coach, names, fps_c, mirror=d['mirrored'])

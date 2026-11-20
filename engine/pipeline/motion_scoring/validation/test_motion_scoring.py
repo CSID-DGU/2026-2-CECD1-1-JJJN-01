@@ -19,7 +19,7 @@ HERE = Path(__file__).resolve().parent
 sys.path[:0] = [str(HERE), str(HERE.parent)]               # synthetic.py (this folder), the motion_scoring package
 import synthetic as syn  # noqa: E402
 from motion_scoring import Config, score, track_from_joints  # noqa: E402
-from motion_scoring.step1_preprocess import Clip  # noqa: E402
+from motion_scoring.step1_preprocess import SMPL_NAMES, Clip  # noqa: E402
 from motion_scoring.step2_checkpoints import detect_events  # noqa: E402
 
 CFG = replace(Config(), auto_tau=True, pose_trim=0.3)      # the preset the backend uses (result_builder.py)
@@ -27,10 +27,13 @@ NOISE_CM = 0.2
 STRUCTURES = {"match", "substitution", "missing", "extra"}
 
 
-def track(ph, seed=1, fps=30.0, noise=NOISE_CM, cut=(0.0, 0.0), mirror=False, **body):
-    """Phases -> the scorer's input. cut = seconds removed from the start / end of the clip."""
+def track(ph, seed=1, fps=30.0, noise=NOISE_CM, cut=(0.0, 0.0), knees_cm=(0.0, 0.0), mirror=False, **body):
+    """Phases -> the scorer's input. cut = seconds removed from the start / end of the clip; knees_cm = the
+    (left, right) knee moved that far towards the other one; mirror = done like a mirror image, after that."""
     joints, fps = syn.skeleton(ph, fps=fps, noise_cm=noise, seed=seed, **body)
     joints = joints[int(round(cut[0] * fps)):len(joints) - int(round(cut[1] * fps))]
+    for side, sign, cm in (("left", -1.0, knees_cm[0]), ("right", 1.0, knees_cm[1])):     # the left is +X
+        joints[:, SMPL_NAMES.index(f"{side}_knee"), 0] += sign * cm
     if mirror:
         joints = syn.mirrored(joints)
     return track_from_joints(joints, np.arange(len(joints)) / fps, "y")
@@ -63,6 +66,12 @@ def nth(ph, k, depth_at_end):
     """Index in ph of the k-th phase (0-based) that ends at that depth and is a movement."""
     hits = [i for i, (_, q) in enumerate(ph) if q == depth_at_end and (ph[i - 1][1] if i else 0.0) != q]
     return hits[k]
+
+
+def bones_at(d, t, end=True):
+    """bones of the match segment that ends (end=False: starts) nearest to the student time t -> {bone: entry}."""
+    seg = min((s for s in d["segments"] if "bones" in s), key=lambda s: abs(s["student_t"][1 if end else 0] - t))
+    return {b["bone"]: b for b in seg["bones"]}
 
 
 # ---------------------------------------------------------------- the same motion
@@ -354,6 +363,90 @@ def test_playback_meets_at_a_substituted_checkpoint():
     assert (pc[k1], ps[k1]) == (frame(s["coach_t"][1]), frame(s["student_t"][1])), (pc[k1], ps[k1], s)
 
 
+# ---------------------------------------------------------------- bones: how every bone differs
+def test_bones_on_every_match_segment():
+    """all the bones of every match segment, labelled or not; none on a segment only one side has"""
+    _, d = compare(syn.phases(reps=3), syn.phases(reps=4))                # the same motion, one repetition more
+    names = set(track(syn.phases(reps=1)).bone_names)
+    assert sum("bones" in s for s in d["segments"]) == 8, structures(d)
+    for s in d["segments"]:
+        assert ("bones" in s) == (s["structure"] == "match"), s
+        for b in s.get("bones", []):
+            assert b["student_bone"] == b["bone"], b                      # not mirrored: the same side
+            assert set(b["dir"]) == {"up", "forward", "out" if b["bone"][:2] in ("l_", "r_") else "right"}, b
+            assert abs(np.linalg.norm(list(b["dir"].values())) - b["deg"]) < 0.2, b  # rounding only
+            assert b["deg"] < 3.0, b                                      # nothing differs but the joint noise
+        assert not s.get("bones") or {b["bone"] for b in s["bones"]} == names, s
+
+
+def test_bones_measure_a_known_difference():
+    """the user leans the trunk further forward at the bottom: by how much and which way, on the way down and
+    on the way up. Too little for a pose label (one bone of ten), but the bones show it"""
+    ph = syn.phases(reps=3)
+    coach, user = track(ph, seed=1), track(ph, seed=2, lean=1.25)         # 50 deg instead of 40 deg
+    d = score(coach, user, CFG).to_dict()
+    k = coach.bone_names.index("trunk")
+    for rep in range(3):
+        i = nth(ph, rep, 1.0)
+        bottom, top = sum(s for s, _ in ph[:i + 1]), sum(s for s, _ in ph[:i + 2])
+        f = int(round(bottom * 30.0))
+        truth = float(np.degrees(np.arccos(coach.bones[f, k] @ user.bones[f, k])))    # from the joints themselves
+        down, up = bones_at(d, bottom), bones_at(d, bottom, end=False)    # the way down ends there, the way up starts
+        assert 8.0 < truth < 12.0, truth
+        for b in (down, up):
+            assert abs(b["trunk"]["deg"] - truth) < 1.5, (truth, b["trunk"])
+            assert b["trunk"]["dir"]["forward"] > 5.0 and b["trunk"]["dir"]["up"] < -3.0, b["trunk"]   # forward and down
+            assert all(e["deg"] < 3.0 for n, e in b.items() if "thigh" in n or "shank" in n), b
+        assert bones_at(d, top, end=False)["trunk"]["deg"] < 3.0 or rep == 2, bones_at(d, top, end=False)["trunk"]
+    assert not any(s["pose"] for s in d["segments"]), [s["pose"] for s in d["segments"]]
+
+
+def test_bones_do_not_depend_on_the_frame_alignment():
+    """a shallower squat: the thighs differ by what the two bottoms differ, on the way down (where it ends) and
+    on the way up (where it starts), the same in every repetition. The partners of the frame alignment would
+    give another value in every repetition; the pose label names the same bones with the same values"""
+    ph, shallow = syn.phases(reps=3), syn.phases(reps=3, depth=0.8)
+    coach, user = track(ph, seed=1), track(shallow, seed=2)
+    d = score(coach, user, CFG).to_dict()
+    assert structures(d) == ["match"] * 8, structures(d)
+    k = coach.bone_names.index("l_thigh")
+    seen = []
+    for rep in range(3):
+        bottom = sum(s for s, _ in ph[:nth(ph, rep, 1.0) + 1])
+        f = int(round(bottom * 30.0))
+        truth = float(np.degrees(np.arccos(coach.bones[f, k] @ user.bones[f, k])))
+        for b in (bones_at(d, bottom), bones_at(d, bottom, end=False)):
+            assert abs(b["l_thigh"]["deg"] - truth) < 2.0 and abs(b["r_thigh"]["deg"] - truth) < 2.0, (truth, b["l_thigh"])
+            assert b["l_thigh"]["dir"]["up"] < -5.0, b["l_thigh"]         # his thigh stays further from level
+            seen.append(b["l_thigh"]["deg"])
+    assert max(seen) - min(seen) < 2.0, seen
+    for s in d["segments"]:
+        if s["pose"]:                                                     # worst = the two largest of the bones
+            deg = {b["bone"]: b["deg"] for b in s["bones"]}
+            assert all(deg[w["bone"]] == w["diff_deg"] for w in s["pose"]["worst"]), s["pose"]
+            assert sorted(w["diff_deg"] for w in s["pose"]["worst"]) == sorted(deg.values())[-2:], s["pose"]
+    assert any(s["pose"] for s in d["segments"])
+
+
+def test_bones_name_the_students_own_side():
+    ph = syn.phases(reps=3)
+    # both knees 4 cm closer together: about 5 deg, too little for a pose label, but the bones show which way
+    _, d = compare(ph, ph, user=dict(knees_cm=(4.0, 4.0)))
+    assert set(structures(d)) == {"match"} and not any(s["pose"] for s in d["segments"]), d["segments"]
+    for s in d["segments"]:
+        b = {x["bone"]: x for x in s["bones"]}
+        assert all(-9.0 < b[n]["dir"]["out"] < -3.0 for n in ("l_thigh", "r_thigh")), (b["l_thigh"], b["r_thigh"])
+        assert all(3.0 < b[n]["dir"]["out"] < 9.0 for n in ("l_shank", "r_shank")), (b["l_shank"], b["r_shank"])
+    # a mirrored user: the knee moved is his own right one, and he tilts 5 deg further to his own right
+    _, d = compare(ph, ph, coach=dict(asym=15.0), user=dict(asym=20.0, knees_cm=(4.0, 0.0), mirror=True))
+    assert d["mirrored"] is True and set(structures(d)) == {"match"}, (d["mirrored"], structures(d))
+    b = bones_at(d, sum(s for s, _ in ph[:nth(ph, 0, 1.0) + 1]))          # the way down to the first bottom
+    assert b["l_thigh"]["student_bone"] == "r_thigh" and b["trunk"]["student_bone"] == "trunk", b["l_thigh"]
+    assert b["l_thigh"]["dir"]["out"] < -3.0, b["l_thigh"]
+    assert abs(b["r_thigh"]["dir"]["out"]) < 2.5, b["r_thigh"]
+    assert 3.0 < b["trunk"]["dir"]["right"] < 8.0, b["trunk"]
+
+
 # ---------------------------------------------------------------- the contract with the backend
 def test_output_format():
     res, d = compare(syn.phases(reps=3), syn.phases(reps=3, bottom=0.8, down=1.6))
@@ -365,6 +458,7 @@ def test_output_format():
         assert s["coach_t"] is None or s["coach_t"][0] <= s["coach_t"][1]
         assert s["timing"] is None or (s["timing"]["label"] in ("slow", "fast") and s["timing"]["ratio"] > 0)
         assert s["pose"] is None or all(set(w) == {"bone", "diff_deg"} for w in s["pose"]["worst"])
+        assert all(set(b) == {"bone", "student_bone", "deg", "dir"} for b in s.get("bones", []))
         assert not any(k.startswith("_") for k in s), s
     starts = [s["student_t"][0] for s in d["segments"]]
     assert starts == sorted(starts)

@@ -67,7 +67,8 @@ class Config:
                                      # are compared with the coach's as they are)
     pose_trust: float = 2.0          # boundary rest pair differing > pose_trust*tau -> clip was cut
     min_label_frac: float = 0.20     # pose flagged only if d > tau lasts this share of the unit (coach time) ...
-    min_label_floor_s: float = 0.10  # ... and at least this long (a frame or two of jitter is never a label)
+    min_label_floor_s: float = 0.10  # ... and at least this long (a frame or two of jitter is never a label);
+                                     # a bone difference (bones) has to last this long as well
     dwell_tol_s: float = 0.15        # timing differences smaller than this (s) are not judged
     hold_missing_ratio: float = 0.5  # coach pause where the student only slows down briefly: missing only if
                                      # student slow-down < this x (coach pause x global tempo); else a (short) hold
