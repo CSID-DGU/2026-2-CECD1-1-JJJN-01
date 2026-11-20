@@ -4,7 +4,7 @@ The matched checkpoints, between the two clip edges, cut both clips into units:
   hold units   the stillness at a matched checkpoint (coach pause <-> student pause)
   move units   the movement from one matched checkpoint (or the clip start) to the next (or the clip end)
 Each unit carries exactly one structure label
-  match         both sides do it                    -> timing (slow / fast, ratio) and pose attached
+  match         both sides do it                    -> timing (slow / fast, ratio), pose and bones attached
   substitution  same place, different action
   missing       coach only (incl. a coach hold the student does not make) -> student_t is where it belongs
   extra         student only
@@ -361,14 +361,70 @@ def _timing(units, res, cfg):
     return r_global
 
 
+def _same_progress(C, S, c, s):
+    """Frame pairs of one unit (coach frames c0 .. c1, student frames s0 .. s1) -> (coach frames, student
+    frames): each coach frame with the student frame that is as far through the unit, as a share of the
+    unit's own pose-path length (of its frames where nothing moves: the tiny ramp)."""
+    def progress(X, a, b):
+        arc = X.arc[a:b + 1] - X.arc[a] + np.arange(b - a + 1) * 1e-9
+        return arc / arc[-1] if b > a else np.zeros(1)
+    j = np.interp(progress(C, *c), progress(S, *s), np.arange(s[0], s[1] + 1))
+    return np.arange(c[0], c[1] + 1), np.rint(j).astype(int)
+
+
+def _partners(res, u, aligned):
+    """The student frame each coach frame of a match unit is compared with -> (coach frames, student frames).
+      a movement  the frame that is as far through the unit (_same_progress)
+      a hold      nothing has a place in a hold (what little moves does not move alike in the two clips):
+                  the frame of the student's hold that looks most like the coach frame (pose distance)
+      a cut unit  its movement is not complete in one of the videos, so there is no share to go by: the
+                  partner in the frame alignment (`aligned`; coach frames without one are left out)"""
+    (c0, c1), (s0, s1) = u["_c"], u["_s"]
+    if u.get("cut"):
+        i = np.array([f for f in range(c0, c1 + 1) if f in aligned], int)
+        return i, np.array([aligned[f] for f in i], int)
+    if "_wc" not in u:                                 # a hold: _hold units, and the short holds of _timing
+        return np.arange(c0, c1 + 1), s0 + res.debug["d"][c0:c1 + 1, s0:s1 + 1].argmin(1)
+    return _same_progress(res.C, res.S, (c0, c1), (s0, s1))
+
+
+def _lasting(x, n):
+    """The largest value x [frames] or every column of x [frames, ...] keeps up for n frames in a row (for all
+    of them if there are fewer)."""
+    n = max(1, min(n, len(x)))
+    return np.stack([x[k:len(x) - n + 1 + k] for k in range(n)], -1).min(-1).max(0)
+
+
 def _pose(units, res, cfg):
-    """pose on match units: sustained d > tau on the coach frames of the unit."""
+    """bones and pose on match units, from the unit's own frames: each coach frame against the student frame
+    at the same place in the unit (_partners). The frame alignment is not used for this: Drop-DTW pairs the
+    frames that look most alike, so along its path a difference shows up late and too large, and where the
+    two movements differ a lot it pairs the frames of one unit with frames of the next (over half of them in
+    the cross-person example clips).
+
+      bones  one entry per bone, with or without a pose label, whatever tau, the bone weights and the trim
+             are, so that whoever knows the exercise can pick the bones that matter for it
+               bone, student_bone  the coach's bone and the student's bone compared with it: the same name,
+                                   or the other side if the result is mirrored
+               deg                 the largest angle between the two that lasts min_label_floor_s (where a
+                                   unit starts and ends is only known to a few frames, and a fast bone
+                                   moves a long way in them: a frame or two is not a difference)
+               dir                 which way the student's bone points away from the coach's, over the unit
+                                   (the frames where the two differ most count most; deg, the components
+                                   add up in quadrature to deg): up, forward, and out = away from the
+                                   body's midline, or for the trunk and the head right = the student's
+                                   own right
+      pose   the label: the pose distance of the pairs stays above tau for min_label_frac of the unit (a
+             share of its own coach duration, so that a quick movement and a long hold are judged alike),
+             at least min_label_floor_s
+             -> worst = the two bones with the largest deg, mean_diff_deg = the mean distance while above"""
     C, S, D = res.C, res.S, res.debug
-    d, tau = D["d"], cfg.tau_deg
-    pairs = {}
+    d, tau, dt = D["d"], cfg.tau_deg, float(np.median(C.dt))
+    aligned = {}                                       # coach frame -> its first partner in the frame alignment
     for k, i, j in D["path"]:
         if k not in DROPS:
-            pairs.setdefault(i, []).append(j)
+            aligned.setdefault(i, j)
+    frames = lambda seconds: int(np.ceil(seconds / dt - 1e-9))
     for u in units:
         u["pose"] = None
         if u["structure"] != "match" or u["_c"] is None:
@@ -376,19 +432,27 @@ def _pose(units, res, cfg):
         unit_s = float(C.t[u["_c"][1]] - C.t[u["_c"][0]])
         if unit_s <= 0.05:
             continue
-        idx = np.arange(u["_c"][0], u["_c"][1] + 1)
-        dm = np.array([min(d[i, j] for j in pairs[i]) if i in pairs else np.nan for i in idx])
-        bad = np.nan_to_num(dm, nan=0) > tau
-        run, best = 0, 0
-        for b in bad:
-            run = run + 1 if b else 0
-            best = max(best, run)
-        # sustained = a share of this unit's own (coach) duration, so a quick movement and a long hold are
-        # judged alike; the floor keeps a frame or two of jitter from becoming a label
-        if best * float(np.median(C.dt)) >= max(cfg.min_label_frac * unit_s, cfg.min_label_floor_s):
-            diffs = [np.degrees(np.arccos(np.clip((C.b[i] * S.b[pairs[i][0]]).sum(-1), -1, 1)))
-                     for i, b in zip(idx, bad) if b and i in pairs]
-            mdiff = np.mean(diffs, axis=0)
-            order = np.argsort(-mdiff)[:2]
-            u["pose"] = dict(worst=[dict(bone=C.names[k], diff_deg=round(float(mdiff[k]), 1)) for k in order],
-                             mean_diff_deg=round(float(np.nanmean(dm[bad])), 1))
+        i, j = _partners(res, u, aligned)
+        if not len(i):
+            continue
+        ang = np.degrees(np.arccos(np.clip((C.b[i] * S.b[j]).sum(-1), -1, 1)))      # [frames, bones]
+        deg = _lasting(ang, frames(cfg.min_label_floor_s))
+        way = (S.b[j] - C.b[i]).mean(0)                # [bones, 3]: x right, y up, z forward
+        way = way / np.maximum(np.linalg.norm(way, axis=1, keepdims=True), 1e-9) * deg[:, None]
+        u["bones"] = []
+        for k, name in enumerate(C.names):
+            x, y, z = (round(float(v), 1) + 0.0 for v in way[k])            # + 0.0: no "-0.0" in the output
+            # a mirrored student has left and right swapped and x reversed: out stays out, right becomes left
+            if name[:2] in ("l_", "r_"):
+                other = ("r_" if name[0] == "l" else "l_") + name[2:]
+                side = dict(out=x if name[0] == "r" else 0.0 - x)
+            else:
+                other = name
+                side = dict(right=0.0 - x if res.mirrored else x)
+            u["bones"].append(dict(bone=name, student_bone=other if res.mirrored else name,
+                                   deg=round(float(deg[k]), 1), dir=dict(up=y, forward=z, **side)))
+        dm = d[i, j]
+        if _lasting(dm, frames(max(cfg.min_label_frac * unit_s, cfg.min_label_floor_s))) > tau:
+            u["pose"] = dict(worst=[dict(bone=C.names[k], diff_deg=round(float(deg[k]), 1))
+                                    for k in np.argsort(-deg)[:2]],
+                             mean_diff_deg=round(float(dm[dm > tau].mean()), 1))

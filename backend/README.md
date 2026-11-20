@@ -90,7 +90,7 @@ cd backend
 | `app/jobs/job_queue.py` | 작업 레코드, GPU 워커 1개(순서대로 1건씩) |
 | `app/jobs/pipeline_runner.py` | 실제 분석 러너: 정규화 → 추출 → 리타겟팅 → 채점, 실패 → 사용자 문장 |
 | `app/result/result_builder.py` | 파이프라인 결과 → `AnalysisResult` JSON |
-| `app/result/pose_metrics.py` | 관절 각도 · 반복별 최저점 · 뼈 차이 방향 (`poseMetrics`, `deviations[].direction`) |
+| `app/result/pose_metrics.py` | 관절 각도 · 반복별 최저점 (`poseMetrics`) |
 | `app/result/frame_map.py` | 3D 뷰어용 재생 순서: 두 스켈레톤의 프레임 순서, `frameMap`, 구간의 재생 시간 |
 | `app/result/llm/feedback.py` | LLM 피드백: 입력 요약, 프롬프트, Gemini 호출(모델 대체), 출력 검증 |
 | `app/debug/api_log.py` | 요청 · 응답 기록 (개발 · 디버깅용) |
@@ -103,8 +103,10 @@ cd backend
   미터, y 위, 바닥 y≈0, 첫 프레임 골반을 x=z=0 으로 옮김 (겹쳐 보기). `nose` 는 BigVegas 의 Head 관절.
 - `segments`: motion_scoring 구간 그대로. `structure` → `verdict` (`substitution` → `substitute`),
   `timing` 은 motion_scoring 값 그대로(비율은 전체 템포 대비 상대값, 판정 없으면 `ok`, 1.0),
-  `pose.worst` → `deviations` (뼈 이름을 프론트 이름으로). `angleDiffDeg` 는 뼈 방향 사이 각도(항상 0 이상)이고,
-  `direction` / `components` 가 어느 쪽으로 다른지를 붙인다 (`app/result/pose_metrics.py`, 아래).
+  `bones` → `deviations` (뼈 이름을 프론트 이름으로): match 구간에서 코치와 가장 크게 벌어졌을 때의 뼈 방향 차이
+  (0.1초 이상 이어진 값. 한두 프레임만 튀는 값은 세지 않는다).
+  `POSE_SAME_DEG` 이상인 뼈 가운데 종목의 주요 뼈(스쿼트: 몸통 · 허벅지 · 정강이)를 먼저, 큰 순서로 2개까지 넣는다.
+  `angleDiffDeg` 는 뼈 방향 사이 각도(항상 0 이상)이고, `direction` / `components` 가 어느 쪽으로 다른지를 붙인다 (아래).
 - `label`: 스쿼트 기준. 구간 동안 골반 높이 변화로 하강 / 상승 / 하강 · 상승 / 바닥 유지 /
   시작 자세 / 마무리 자세 / 선 자세 유지.
 - 재생 순서 (`app/result/frame_map.py`): `student` 와 `coachRetargeted` 는 원본 프레임 그대로가 아니라 motion_scoring 의
@@ -130,8 +132,9 @@ cd backend
     `legLengthCm`(사용자 다리 길이), `thresholds`(말하지 않을 작은 차이 기준. 길이는 다리 길이 비율).
   - 길이 기준은 모두 다리 길이 비율: 최저점 최소 깊이 7 %, 선 자세 범위 3.5 %.
   - 코치가 사용자 체형으로 리타겟팅된 골격이라 cm 를 그대로 비교한다. `mirrored` 면 코치 좌우를 바꿔 맞춘다.
-- `deviations[].direction`: 구간의 정렬된 프레임 쌍에서 (사용자 뼈 − 코치 뼈) 평균을 몸 기준 위 · 앞 · 바깥쪽 성분으로 나누고,
-  제곱합이 `angleDiffDeg` 가 되도록 맞춘 값(`components`)의 가장 큰 성분.
+- `deviations[].direction`: 구간 동안의 (사용자 뼈 − 코치 뼈) 평균을 몸 기준 위 · 앞 · 바깥쪽 성분으로 나누고,
+  제곱합이 `angleDiffDeg` 가 되도록 맞춘 값(`components`)의 가장 큰 성분. motion_scoring 이 구간을 같은 만큼 진행한
+  프레임끼리 비교해서 계산한다 (DTW 가 짝지은 프레임이 아니다. 멈춤 구간은 그 멈춤 안에서 가장 비슷한 프레임끼리).
 - 총점(`score`)은 산식이 정해지지 않아 응답에 넣지 않는다. `feedback`: `llm` 단계 결과(실패 시 없음).
 
 ## 다음 단계
