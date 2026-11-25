@@ -38,7 +38,7 @@ cd backend
 ## 현재 단계: 2단계 (실제 분석)
 
 - `POST /analysis` 는 업로드를 검사·저장하고 `jobId` 를 바로 돌려준다 (202).
-  검사: 종목(지금은 스쿼트만), `coachId` / `coachVideo` 중 하나, 형식(mp4/mov/webm), 100MB, 30초, ffprobe 로 읽히는지.
+  검사: 종목(지금은 스쿼트 · 데드리프트), `coachId` / `coachVideo` 중 하나, 형식(mp4/mov/webm), 100MB, 30초, ffprobe 로 읽히는지.
 - 워커 1개가 작업을 순서대로 하나씩 실제로 분석한다 (`app/jobs/pipeline_runner.py`).
 
   | status | 하는 일 | 시간 (사용자 영상 1개) |
@@ -91,7 +91,7 @@ cd backend
 | `app/jobs/job_queue.py` | 작업 레코드, GPU 워커 1개(순서대로 1건씩) |
 | `app/jobs/pipeline_runner.py` | 실제 분석 러너: 정규화 → 추출 → 리타겟팅 → 채점, 실패 → 사용자 문장 |
 | `app/result/result_builder.py` | 파이프라인 결과 → `AnalysisResult` JSON |
-| `app/result/exercises/` | 종목별 모듈 (지금은 `squat.py`): 주요 뼈, 구간 이름, 기준 자세의 위치, LLM 지시문의 종목 부분 |
+| `app/result/exercises/` | 종목별 모듈 (`squat.py`, `deadlift.py`): 주요 뼈, 구간 이름, 기준 자세의 위치, LLM 지시문의 종목 부분 |
 | `app/result/pose_metrics.py` | 관절 각도 · 반복별 기준 자세의 값 (`poseMetrics`). 기준 자세가 어느 프레임인지는 종목 모듈이 정한다 |
 | `app/result/frame_map.py` | 3D 뷰어용 재생 순서: 두 스켈레톤의 프레임 순서, `frameMap`, 구간의 재생 시간 |
 | `app/result/llm/feedback.py` | LLM 피드백: 입력 요약, 프롬프트(공통 문장 + 종목 모듈의 문장), Gemini 호출(모델 대체), 출력 검증 |
@@ -109,12 +109,17 @@ cd backend
 |---|---|
 | `MAIN_BONES` 주요 뼈 | 정렬의 뼈 비중(`scorer_setup`), `deviations` 에 먼저 넣을 뼈 |
 | `labeller` 구간 이름 | `segments[].label` |
-| `key_frames` · `rest_frames` · `moves` 반복의 기준 자세(스쿼트: 최저점)와 쉬는 자세(스쿼트: 선 자세)의 위치 | `poseMetrics` |
-| `PROMPT` 종목에 관한 문장 3묶음 | LLM 지시문 (`feedback.system_prompt`) |
+| `key_frames` · `rest_frames` · `moves` 반복의 기준 자세와 쉬는 자세의 위치 (스쿼트: 최저점 / 선 자세, 데드리프트: 리프트가 시작되는 바닥 자세 / 다 일어선 자세) | `poseMetrics` |
+| `PROMPT` 종목에 관한 문장과 예시 | LLM 지시문 (`feedback.system_prompt`) |
 
 종목을 추가하려면 모듈 파일을 만들어 `exercises/__init__.py` 의 `MODULES` 에 넣는다. 사용자에게 여는 것은
 `constants.SUPPORTED_EXERCISES` 다(모듈이 없는 종목을 열면 `test_exercises.py` 가 실패한다). 응답의 `poseMetrics` 는 필드
 이름이 스쿼트 기준(`standing`, `bottom`)으로 정해져 있어, 다른 종목도 같은 자리에 자기 기준 자세의 값을 넣는다.
+
+데드리프트 모듈은 상체 숙임 각도로 동작을 읽는다(골반 높이는 다리를 편 채 하는 방식에서 거의 변하지 않는다). 영상이 서서
+시작하든 바닥 자세에서 시작하든 반복은 리프트로 세고, 구간 이름은 셋업 / 리프트 / 락아웃 / 내리기다. API 가 받는
+종목이지만(`SUPPORTED_EXERCISES`) 기본 코치 영상이 없어 코치 영상을 직접 올려야 한다. 합성 스켈레톤으로만 확인했고 실제
+영상으로는 확인하지 못했다.
 
 ## 결과 변환 규칙 (`result_builder.py`)
 

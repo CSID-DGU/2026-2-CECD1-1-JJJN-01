@@ -34,8 +34,8 @@ EXERCISE_KO = {'squat': '스쿼트', 'deadlift': '데드리프트', 'bench_press
 
 def system_prompt(exercise):
     """The instruction the model gets with the analysis of an exercise: the text below is the same for every
-    exercise, and the exercise's module (app/result/exercises) writes three parts of it -- what a segment's
-    deviations are in this exercise, what poseMetrics holds, and what to look at first."""
+    exercise, and the exercise's module (app/result/exercises) writes the parts that are about the exercise --
+    what a segment's deviations are in it, what poseMetrics holds, what to look at first, and a few examples."""
     p = exercises.get(exercise).PROMPT
     return f"""너는 운동 동작을 봐 주는 코치다. 사용자의 동작을 코치 시범 동작과 비교한 분석 결과(JSON)를 받아, 앱 화면에 보여 줄 짧은 피드백을 한국어로 쓴다. 코치 골격은 사용자 체형에 맞춰 바꾼 것이라 cm 값을 그대로 비교해도 된다.
 
@@ -45,12 +45,12 @@ def system_prompt(exercise):
 - mirrored: true 면 사용자가 거울처럼 좌우를 바꿔 따라 했다고 보고 비교했다. 좌우는 모두 사용자 기준이다.
 - segments: 사용자 영상을 시간 순서로 나눈 구간. id, label(구간 이름), verdict(판정).
   - match: 코치와 같은 동작을 했다.
-  - missing: 코치에게 있는 동작(예: 반복 사이에 서서 쉬기)이 사용자에게는 없다.
-  - extra: 코치에게 없는 동작(예: 바닥에서 멈추기)을 사용자가 했다.
+  - missing: 코치에게 있는 동작(예: {p['missing_example']})이 사용자에게는 없다.
+  - extra: 코치에게 없는 동작(예: {p['extra_example']})을 사용자가 했다.
   - substitute: 같은 자리에서 코치와 다른 동작을 했다.
 - userSec / coachSec: 그 구간에 사용자와 코치가 쓴 시간(초). 없으면 해당 사람에게 그 구간이 없다.
 - timing: match 구간에만 있다. label 이 ok 면 속도 문제가 없다. slow / fast 면 사용자의 전체 속도를 감안해도 이 구간이 상대적으로 느리거나 빠르다는 뜻이다. ratio 는 (사용자 시간 ÷ 코치 시간)을 globalTempo 로 나눈 상대값이다.
-- hold: 코치가 서서(또는 앉아서) 쉰 자리에서 사용자가 실제로 느려진 시간. coachSec / userSec(초), ratio = userSec ÷ (coachSec × globalTempo). ratio 가 0.5 미만이면 missing(사실상 쉬지 않음), 0.5 이상이면 쉼이 있는 match 구간이다. 쉼 구간(선 자세 유지, 바닥 유지)의 timing 이 fast 면 쉼이 짧았다는 뜻이다.
+- hold: 코치가 {p['rest_where']} 쉰 자리에서 사용자가 실제로 느려진 시간. coachSec / userSec(초), ratio = userSec ÷ (coachSec × globalTempo). ratio 가 0.5 미만이면 missing(사실상 쉬지 않음), 0.5 이상이면 쉼이 있는 match 구간이다. 쉼 구간({p['rest_labels']})의 timing 이 fast 면 쉼이 짧았다는 뜻이다.
 - deviations: 그 구간에서 코치와 가장 크게 벌어진 순간의 신체 부위별 각도 차이(도). {p['deviations']} direction 은 사용자 쪽 부위가 코치보다 더 향한 쪽, detail 은 방향별 성분이다.
 - coachMotion / userMotion: 코치에게만 / 사용자에게만 있는 구간에서 그 사람이 한 움직임(부위, 각도, 방향). 각도가 모두 5도 미만이면 사실상 가만히 있었다는 뜻이다.
 {p['pose_metrics']}
@@ -60,7 +60,7 @@ def system_prompt(exercise):
 {p['rules']}
 - 같은 차이가 여러 반복에서 되풀이되면 한 항목으로 묶어 범위로 말하고, 대표 구간 id 하나를 segmentId 에 넣는다.
 - 반복 횟수(repCount)가 다르면 그 사실을 말한다.
-- 코치가 가만히 서 있던 missing 구간들(반복 사이 쉼)은 하나의 항목으로 묶는다. hold 가 있으면 "쉬지 않았다"가 아니라 "코치는 0.4~0.5초 쉬었고 사용자는 0.1~0.2초로 거의 쉬지 않았다"처럼 두 시간을 말한다.
+- 코치가 {p['still']} missing 구간들(반복 사이 쉼)은 하나의 항목으로 묶는다. hold 가 있으면 "쉬지 않았다"가 아니라 "코치는 0.4~0.5초 쉬었고 사용자는 0.1~0.2초로 거의 쉬지 않았다"처럼 두 시간을 말한다.
 - timing.ratio 는 상대값이므로 "1.5배 느려요" 처럼 배수로 말하지 않는다. userSec / coachSec 같은 절대 시간은 그대로 말해도 된다.
 - 기준은 코치 동작이다. 코치와 다른 점과 코치에 가깝게 하는 연습 방법을 말하되, 의학적으로 옳고 그름을 단정하지 않는다.
 - 말투는 "~해요" 체. 친절하고 짧게, 전문 용어 대신 쉬운 말을 쓴다(예: 엉덩이 굽힘 → 엉덩이를 뒤로 빼며 접는 정도).

@@ -26,7 +26,7 @@ VIDEO_EXT = {'.mp4', '.mov', '.webm'}
 VIDEO_MIME = {'video/mp4', 'video/quicktime', 'video/webm'}
 
 EXERCISES = ('squat', 'deadlift', 'bench_press')
-SUPPORTED_EXERCISES = ('squat',)          # segment labelling is squat-only for now
+SUPPORTED_EXERCISES = ('squat', 'deadlift')   # those with a module in app/result/exercises
 
 # coachId -> pre-computed run_video output of the coach (same id in frontend/src/constants/coachVideos.ts)
 COACHES = {

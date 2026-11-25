@@ -60,8 +60,9 @@ def rest_frames(body):
     return np.where(body.pelvis >= body.stand_h - STAND_BAND_LEG * body.leg)[0]
 
 
-def moves(body, r):
-    """The range r (s) holds a repetition's worth of pelvis movement (not just a hold)."""
+def moves(body, r, key=None):
+    """The range r (s) holds a repetition's worth of pelvis movement (not just a hold). The bottom (frame `key`)
+    is in the middle of a squat, so the movement on either side of it counts."""
     f0, f1 = (min(max(int(round(t * body.fps)), 0), len(body.pelvis) - 1) for t in r)
     bot = key_frames(body)
     depth = body.stand_h - float(np.median(body.pelvis[bot])) if bot else 0.
@@ -70,6 +71,11 @@ def moves(body, r):
 
 # ---------------------------------------------------------------- what the LLM is told (llm/feedback.py system_prompt)
 PROMPT = dict(
+    missing_example='반복 사이에 서서 쉬기',
+    extra_example='바닥에서 멈추기',
+    rest_where='서서(또는 앉아서)',
+    rest_labels='선 자세 유지, 바닥 유지',
+    still='가만히 서 있던',
     deviations='하강 · 상승 구간이면 보통 가장 낮게 앉은 순간의 값이다. 종목에서 중요한 부위(스쿼트: 몸통, 허벅지, 정강이)가 먼저 나온다.',
     pose_metrics="""- poseMetrics: 관절 각도 측정.
   - legLengthCm: 사용자 다리 길이(cm). thresholds: 이보다 작은 차이는 비슷한 것으로 보는 기준.

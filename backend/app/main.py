@@ -98,7 +98,7 @@ async def create_analysis(request: Request, video: UploadFile = File(...), exerc
         if exercise not in constants.EXERCISES:
             raise BadRequest('알 수 없는 종목이에요.')
         if exercise not in constants.SUPPORTED_EXERCISES:
-            raise BadRequest('아직 스쿼트만 분석할 수 있어요.')
+            raise BadRequest('아직 스쿼트와 데드리프트만 분석할 수 있어요.')
         if bool(coachId) == bool(coachVideo):
             raise BadRequest('코치 영상을 하나 골라 주세요.')
         if coachId and (coachId not in constants.COACHES or constants.COACHES[coachId]['exercise'] != exercise):

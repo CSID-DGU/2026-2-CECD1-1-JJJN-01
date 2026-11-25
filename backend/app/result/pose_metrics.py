@@ -134,11 +134,11 @@ def pose_metrics(user, coach, alignment, segments, mirrored, ex):
 
     def extra(j):
         s = _segment_near(segments, j / user.fps, 'studentRange', ('extra',), tol=0.)
-        return s is not None and ex.moves(user, s['studentRange'])
+        return s is not None and ex.moves(user, s['studentRange'], j)
 
     def missing(i):
         s = _segment_near(segments, i / coach.fps, 'coachRange', ('missing',), tol=0.)
-        return s is not None and ex.moves(coach, s['coachRange'])
+        return s is not None and ex.moves(coach, s['coachRange'], i)
 
     def to_coach(j):
         t = j / user.fps
