@@ -1,4 +1,4 @@
-"""Joint angles and squat key poses from the two skeletons.
+"""Joint angles at the key poses of an exercise, from the two skeletons.
 
 motion_scoring compares bone directions only (the unsigned angle between the user's and the coach's bone,
 no joint angles): it was designed for an LLM that also watches the video. The app sends JSON only, so the
@@ -16,11 +16,12 @@ Joint metrics (per frame)
   pelvisDropCm    standing pelvis height (95th percentile) - pelvis height
   kneeWidthRatio  knee distance / ankle distance; < 1 = knees closer together than the ankles
 
-Key poses (squat; values are medians over +- 0.1 s around the frame)
-  bottoms   pelvis-height minima: prominence >= 35 % of the pelvis range (and >= 7 % of the leg), >= 0.6 s apart
+Key poses (values are medians over +- 0.1 s around the frame). Which frames they are is the exercise's to say
+(app/result/exercises/<name>.py); their names in the response are those of the squat, the first exercise.
+  reps[].bottom  the key pose of every repetition (key_frames; squat: the pelvis-height minima)
   pairing   consistent with the motion_scoring segments (see pose_metrics()): extra / missing repetitions
-            (one-to-one); unpaired bottoms stay with the other side null (extra / missing repetition)
-  standing  median over the frames whose pelvis is within 3.5 % of the leg of the standing height
+            (one-to-one); unpaired key poses stay with the other side null (extra / missing repetition)
+  standing  the pose the exercise rests in (rest_frames; squat: standing), median over those frames
   thresholds  differences the feedback ignores: constants.POSE_SAME_DEG, POSE_SAME_LEG x leg length (cm),
             POSE_SAME_RATIO; returned with legLengthCm so the frontend / LLM use the same numbers
   If the scorer matched the mirrored user, coach left / right are swapped onto the user's sides.
@@ -29,16 +30,11 @@ The bone differences of a segment (deviations) are not measured here: motion_sco
 direction (result_builder.deviations).
 """
 import numpy as np
-from scipy.signal import find_peaks
 
 from .. import constants
 
 SIDES = ('left', 'right')
 UP = np.array([0., 1., 0.])
-# lengths are shares of the leg length (hip -> knee -> ankle), so a child and an adult are judged alike;
-# the cm in the comments are for an 85 cm leg
-MIN_DEPTH_LEG = 0.07      # a squat lowers the pelvis by at least this (6 cm)
-STAND_BAND_LEG = 0.035    # standing = pelvis within this of its standing height (3 cm)
 
 
 def _unit(v):
@@ -76,14 +72,6 @@ class Body:
                           / np.maximum(np.linalg.norm(j('left_ankle') - j('right_ankle'), axis=1), 1e-6))
         self.m = m
 
-    def bottoms(self):
-        rng = float(np.percentile(self.pelvis, 95) - np.percentile(self.pelvis, 5))
-        if rng < MIN_DEPTH_LEG * self.leg:
-            return []
-        pk, _ = find_peaks(-self.pelvis, prominence=max(0.35 * rng, MIN_DEPTH_LEG * self.leg),
-                           distance=max(1, int(0.6 * self.fps)))
-        return [int(p) for p in pk]
-
     def pose(self, frames, swap=False):
         """Joint metrics at a frame (int) or the median over frames (array); swap = mirror left/right."""
         v = {k: float(np.median(x[frames])) for k, x in self.m.items()}
@@ -97,9 +85,6 @@ class Body:
         """Frames within +- sec of f: key-pose values are medians over this window (robust to jitter)."""
         h = max(1, int(round(sec * self.fps)))
         return np.arange(max(f - h, 0), min(f + h, len(self.pelvis) - 1) + 1)
-
-    def standing(self, swap=False):
-        return self.pose(np.where(self.pelvis >= self.stand_h - STAND_BAND_LEG * self.leg)[0], swap)
 
 
 def _diff(u, c):
@@ -136,31 +121,24 @@ def _segment_near(segments, t, key, verdicts, tol=0.1):
     return best
 
 
-def _moves(body, r):
-    """The range r (s) holds a repetition's worth of pelvis movement (not just a hold)."""
-    f0, f1 = (min(max(int(round(t * body.fps)), 0), len(body.pelvis) - 1) for t in r)
-    bot = body.bottoms()
-    depth = body.stand_h - float(np.median(body.pelvis[bot])) if bot else 0.
-    return depth > 0 and float(np.ptp(body.pelvis[f0:f1 + 1])) >= 0.5 * depth
-
-
-def pose_metrics(user, coach, alignment, segments, mirrored):
-    """-> AnalysisResult.poseMetrics. user / coach: Body; alignment: [[user j, coach i]].
+def pose_metrics(user, coach, alignment, segments, mirrored, ex):
+    """-> AnalysisResult.poseMetrics. user / coach: Body; alignment: [[user j, coach i]]; ex: the module of
+    the exercise (app/result/exercises), which says where the key poses are.
 
     Pairing follows motion_scoring's segments so that poseMetrics and the segments tell the same story:
-    a bottom inside an extra (user) / missing (coach) segment that holds a whole movement is unpaired;
-    otherwise the user bottom is mapped to coach time through its match / substitute segment (linear
-    within the segment), else through the frame alignment, and taken by the nearest free coach bottom."""
+    a key pose (a squat's bottom) inside an extra (user) / missing (coach) segment that holds a whole movement
+    is unpaired; otherwise the user's is mapped to coach time through its match / substitute segment (linear
+    within the segment), else through the frame alignment, and taken by the nearest free one of the coach."""
     al = np.asarray(alignment, int).reshape(-1, 2)
-    ub, cb = user.bottoms(), coach.bottoms()
+    ub, cb = ex.key_frames(user), ex.key_frames(coach)
 
     def extra(j):
         s = _segment_near(segments, j / user.fps, 'studentRange', ('extra',), tol=0.)
-        return s is not None and _moves(user, s['studentRange'])
+        return s is not None and ex.moves(user, s['studentRange'])
 
     def missing(i):
         s = _segment_near(segments, i / coach.fps, 'coachRange', ('missing',), tol=0.)
-        return s is not None and _moves(coach, s['coachRange'])
+        return s is not None and ex.moves(coach, s['coachRange'])
 
     def to_coach(j):
         t = j / user.fps
@@ -203,7 +181,7 @@ def pose_metrics(user, coach, alignment, segments, mirrored):
         if u and c:
             rep['bottom']['diff'] = _diff(u, c)
         reps.append(rep)
-    su, sc = user.standing(), coach.standing(swap=mirrored)
+    su, sc = user.pose(ex.rest_frames(user)), coach.pose(ex.rest_frames(coach), swap=mirrored)
     th = dict(sameAngleDeg=constants.POSE_SAME_DEG, sameHeightCm=round(constants.POSE_SAME_LEG * user.leg, 1),
               sameKneeWidthRatio=constants.POSE_SAME_RATIO)
     return dict(legLengthCm=round(user.leg, 1), thresholds=th, repCount=dict(user=len(ub), coach=len(cb)),
