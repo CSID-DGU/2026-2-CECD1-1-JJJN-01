@@ -94,20 +94,24 @@ AXES_KO = (('up', '위로', '아래로'), ('forward', '앞으로', '뒤로'), ('
            ('right', '오른쪽으로', '왼쪽으로'))
 
 
-def detail_ko(components, min_deg=5.):
+def detail_ko(components, min_deg=5., axes=AXES_KO):
     """{'up': 33.1, 'forward': -15.4, ...} -> '위로 33°, 뒤로 15°' (components >= min_deg)."""
     parts = [(abs(v), f'{pos if v > 0 else neg} {round(abs(v))}°')
-             for axis, pos, neg in AXES_KO if abs(v := components.get(axis, 0.)) >= min_deg]
+             for axis, pos, neg in axes if abs(v := components.get(axis, 0.)) >= min_deg]
     return ', '.join(t for _, t in sorted(parts, reverse=True))
 
 
-def motion_ko(motions, mirrored=False):
+def motion_ko(motions, mirrored=False, dir_ko=DIR_KO):
     return [dict(part=bone_ko(swap_side(FRONT_BONES.get(m['bone'], m['bone'])) if mirrored else m['bone']),
-                 deg=round(m['deg']), direction=DIR_KO.get(m.get('dir'), m.get('dir'))) for m in motions]
+                 deg=round(m['deg']), direction=dir_ko.get(m.get('dir'), m.get('dir'))) for m in motions]
 
 
 def llm_input(result, score):
-    """Compact JSON-able summary for the model (result: AnalysisResult dict, score: motion_scoring to_dict())."""
+    """Compact JSON-able summary for the model (result: AnalysisResult dict, score: motion_scoring to_dict()).
+    An exercise may have its own words for directions (a lifter lying down) and its own values in place of
+    poseMetrics (score['exerciseMetrics'], see result_builder.build_result): app/result/exercises."""
+    ex = exercises.MODULES.get(result['exercise'])
+    axes, dir_ko = getattr(ex, 'AXES_KO', AXES_KO), {**DIR_KO, **getattr(ex, 'DIR_KO', {})}
     segs = []
     units = score.get('segments', [])
     mirrored = bool(score.get('mirrored'))
@@ -128,18 +132,23 @@ def llm_input(result, score):
             for d in s['deviations']:
                 dv = dict(part=BONE_KO.get(d['bone'], d['bone']), angleDiffDeg=round(d['angleDiffDeg']))
                 if d.get('direction'):
-                    dv['direction'] = DIR_KO[d['direction']]
-                    dv['detail'] = detail_ko(d['components'])
+                    dv['direction'] = dir_ko[d['direction']]
+                    dv['detail'] = detail_ko(d['components'], axes=axes)
+                elif d.get('components'):               # a direction the response does not name: the largest component
+                    axis, value = max(d['components'].items(), key=lambda kv: abs(kv[1]))
+                    dv['direction'] = next(pos if value > 0 else neg for a, pos, neg in axes if a == axis)
+                    dv['detail'] = detail_ko(d['components'], axes=axes)
                 item['deviations'].append(dv)
         if u.get('coach_motion'):                       # coach's own sides
-            item['coachMotion'] = motion_ko(u['coach_motion'])
+            item['coachMotion'] = motion_ko(u['coach_motion'], dir_ko=dir_ko)
         if u.get('student_motion'):                     # scored on the mirrored user when mirrored
-            item['userMotion'] = motion_ko(u['student_motion'], mirrored)
+            item['userMotion'] = motion_ko(u['student_motion'], mirrored, dir_ko)
         segs.append(item)
     out = dict(exercise=EXERCISE_KO.get(result['exercise'], result['exercise']),
                globalTempo=score.get('global_tempo'), mirrored=mirrored, segments=segs)
-    if result.get('poseMetrics'):
-        out['poseMetrics'] = result['poseMetrics']
+    metrics = score.get('exerciseMetrics') or result.get('poseMetrics')
+    if metrics:
+        out['poseMetrics'] = metrics
     return out
 
 

@@ -20,15 +20,23 @@ Everything else in app/result is the same for every exercise and asks the module
                         coach is when resting). llm/feedback.py puts them into the instruction that is the
                         same for every exercise
 
+A module may also hold, where the exercise needs it (the bench press does: its lifter lies down)
+  HIDDEN_DIRECTIONS     directions the response does not name in deviations[].direction, because the word
+                        the result screen has for them would be read wrongly
+  AXES_KO, DIR_KO       its own words for the components and the direction of a deviation, for the LLM
+  llm_metrics(user, coach, pm, mirrored)
+                        what the LLM gets in place of the response's poseMetrics pm, when the knees, the hips
+                        and the trunk say nothing about the exercise. The response itself keeps its shape
+
 body is a pose_metrics.Body. motion_scoring itself knows no exercise: it is given the main bones as weights
 and nothing else.
 
 Adding an exercise is adding its module here. The API only accepts it once it is in
 constants.SUPPORTED_EXERCISES as well.
 """
-from . import deadlift, squat
+from . import bench_press, deadlift, squat
 
-MODULES = {'squat': squat, 'deadlift': deadlift}
+MODULES = {'squat': squat, 'deadlift': deadlift, 'bench_press': bench_press}
 
 
 def get(exercise):
@@ -41,3 +49,8 @@ def get(exercise):
 def main_bones(exercise):
     """The main bones of an exercise; () for one without a module (the scorer then counts every bone alike)."""
     return MODULES[exercise].MAIN_BONES if exercise in MODULES else ()
+
+
+def hidden_directions(exercise):
+    """The directions the response does not name for an exercise (its HIDDEN_DIRECTIONS); () for most."""
+    return getattr(MODULES.get(exercise), 'HIDDEN_DIRECTIONS', ())

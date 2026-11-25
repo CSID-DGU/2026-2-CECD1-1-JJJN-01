@@ -88,14 +88,17 @@ def deviations(bones, exercise):
     side (student_bone: the other side if the scorer matched the mirrored user).
     angleDiffDeg is the angle between the two bones (never negative); components splits it into up / forward /
     outward (away from the body's midline; for the torso and the head: right = the user's right), and
-    direction names the largest of them."""
-    main = exercises.main_bones(exercise)
+    direction names the largest of them. An exercise may have directions it does not name (a lifter lying
+    down: exercises.hidden_directions); such a deviation goes without `direction`, which the frontend allows."""
+    main, hidden = exercises.main_bones(exercise), exercises.hidden_directions(exercise)
     out = []
     for b in sorted((b for b in bones if b['deg'] >= POSE_SAME_DEG), key=lambda b: (b['bone'] not in main, -b['deg'])):
         comp = {'outward' if axis == 'out' else axis: float(v) for axis, v in b['dir'].items()}
         axis, value = max(comp.items(), key=lambda kv: abs(kv[1]))
-        out.append(dict(bone=FRONT_BONES.get(b['student_bone'], b['student_bone']), angleDiffDeg=float(b['deg']),
-                        direction=DIRECTION[axis, value > 0], components=comp))
+        item = dict(bone=FRONT_BONES.get(b['student_bone'], b['student_bone']), angleDiffDeg=float(b['deg']))
+        if DIRECTION[axis, value > 0] not in hidden:
+            item['direction'] = DIRECTION[axis, value > 0]
+        out.append(dict(item, components=comp))
     return out[:MAX_DEVIATIONS]
 
 
@@ -139,7 +142,8 @@ def build_segments(units, exercise, label_fn):
 
 
 def build_result(job_id, exercise, retarget_dir, with_score=False, playback=True):
-    """-> AnalysisResult dict (and the motion_scoring to_dict() when with_score, for the LLM stage).
+    """-> AnalysisResult dict (and the motion_scoring to_dict() when with_score, for the LLM stage; with
+    `exerciseMetrics` in it where the exercise measures values of its own for the LLM).
     playback=False: the two skeletons as recorded, every range on the videos' own times, and the scorer's
     frame pairs as `alignment` in place of `frameMap` (for experiments that check the analysis against the
     videos; the API never sends this form)."""
@@ -168,6 +172,8 @@ def build_result(job_id, exercise, retarget_dir, with_score=False, playback=True
     segments = build_segments(d['segments'], exercise, label)
     body_u, body_c = Body(user, names, fps_u), Body(coach, names, fps_c)
     metrics = pose_metrics(body_u, body_c, alignment, segments, d['mirrored'], ex)     # all on the videos' own times
+    if hasattr(ex, 'llm_metrics'):         # values of the exercise's own for the LLM stage: they go with the scorer
+        d['exerciseMetrics'] = ex.llm_metrics(body_u, body_c, metrics, d['mirrored'])    # output, not into the response
     student = skeleton_sequence(user, names, fps_u)
     shown_coach = skeleton_sequence(coach, names, fps_c, mirror=d['mirrored'])
     view = dict(alignment=[list(p) for p in alignment])    # playback=False only: the scorer's frame pairs
