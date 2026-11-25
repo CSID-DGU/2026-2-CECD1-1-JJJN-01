@@ -18,9 +18,11 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 sys.path[:0] = [str(HERE), str(HERE.parent)]                   # synthetic.py (이 폴더), motion_scoring 패키지
 import synthetic as syn  # noqa: E402
-from motion_scoring import Config, score, track_from_joints  # noqa: E402
+from motion_scoring import Config, main_weights, score, track_from_joints  # noqa: E402
 
-cfg = replace(Config(), auto_tau=True, pose_trim=0.3)          # 실제 영상 설정 (백엔드와 같음)
+# 실제 영상 설정 (백엔드가 스쿼트를 채점할 때와 같음): tau 와 kappa 는 코치 영상에서, 자세 비교는 다리 · 몸통 위주로
+cfg = replace(Config(), auto_tau=True)
+weights = main_weights(("trunk", "l_thigh", "r_thigh", "l_shank", "r_shank"), cfg)
 
 coach = syn.phases(reps=4, top=0.8)
 student = list(coach)
@@ -35,7 +37,7 @@ def track(phases, seed, lean=1.0):
     return track_from_joints(joints, np.arange(len(joints)) / fps, "y")
 
 
-out = score(track(coach, 1), track(student, 2, lean=1.25), cfg).to_dict()   # lean 1.25: 바닥에서 40도 -> 50도
+out = score(track(coach, 1), track(student, 2, lean=1.25), cfg, weights).to_dict()   # lean 1.25: 바닥에서 40도 -> 50도
 p = out["params"]
 print(f"tau = {p['tau_deg']:.2f} deg ({p['tau_from']}), kappa = {p['kappa']:.2f}, global_tempo = {out['global_tempo']}")
 row = "{:<13} {:<16} {:<16} {:<12} {:<12} {}"

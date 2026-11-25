@@ -11,18 +11,17 @@ Writes data/jobs/<jobId>/alignment_report.md and cpdtw_alignment.json (raw path 
 import json
 import sys
 from collections import Counter
-from dataclasses import replace
 
 import numpy as np
 
 from app import constants
-from app.result.result_builder import build_result
+from app.result.result_builder import build_result, scorer_setup
 from pipeline.bvh_to_npz import bvh_joints
 from pipeline.common.paths import SCORING_DIR
 
 if str(SCORING_DIR) not in sys.path:
     sys.path.insert(0, str(SCORING_DIR))
-from motion_scoring import Config, score, track_from_joints  # noqa: E402
+from motion_scoring import score, track_from_joints  # noqa: E402
 
 KIND = {'match': '둘 다 한 프레임씩 진행', 'warp_c': '코치만 진행 (사용자는 그 프레임에 머묾 = 사용자가 빨리 지나감)',
         'warp_s': '사용자만 진행 (코치는 그 프레임에 머묾 = 사용자가 느리거나 멈춤)',
@@ -76,9 +75,9 @@ def main():
     rd = d / 'retarget'
     coach, names, fc = bvh_joints(rd / 'coach_on_user_pan.bvh')
     user, _, fu = bvh_joints(rd / 'user.bvh')
-    cfg = replace(Config(), auto_tau=True, pose_trim=0.3)               # as result_builder / pipeline.validation.score_user
+    cfg, weights = scorer_setup('squat')                                # as build_result scores it
     tr = lambda j, f: track_from_joints(j, np.arange(len(j)) / f, 'y', None, names)
-    res = score(tr(coach, fc), tr(user, fu), cfg, try_mirror=True)
+    res = score(tr(coach, fc), tr(user, fu), cfg, weights, try_mirror=True)
     D = res.debug
     result = build_result(job, 'squat', rd, playback=False)   # the scorer's own frame pairs
     al = result['alignment']

@@ -101,6 +101,10 @@ cd backend
 
 - `student` / `coachRetargeted`: `user.bvh` / `coach_on_user_pan.bvh` → 공식 FK → 프론트 15관절 이름,
   미터, y 위, 바닥 y≈0, 첫 프레임 골반을 x=z=0 으로 옮김 (겹쳐 보기). `nose` 는 BigVegas 의 Head 관절.
+- 채점 설정 (`scorer_setup`): motion_scoring 을 실제 영상 설정(τ · κ 를 코치 영상에서 구함)으로 부르고, 두 자세를 비교할 때
+  종목의 주요 뼈(`MAIN_BONES`, 스쿼트: 몸통 · 허벅지 · 정강이)는 1, 나머지 뼈는 0.3 의 비중으로 센다. 뼈를 빼지는 않는다
+  (예전에는 가장 다른 3개를 뺐는데, 스쿼트 최저점에서는 그게 몸통과 허벅지였다). `MAIN_BONES` 가 없는 종목은 모든 뼈를
+  같은 비중으로 센다. `verification/experiments` 의 실험도 이 설정을 가져다 쓴다.
 - `segments`: motion_scoring 구간 그대로. `structure` → `verdict` (`substitution` → `substitute`),
   `timing` 은 motion_scoring 값 그대로(비율은 전체 템포 대비 상대값, 판정 없으면 `ok`, 1.0),
   `bones` → `deviations` (뼈 이름을 프론트 이름으로): match 구간에서 코치와 가장 크게 벌어졌을 때의 뼈 방향 차이

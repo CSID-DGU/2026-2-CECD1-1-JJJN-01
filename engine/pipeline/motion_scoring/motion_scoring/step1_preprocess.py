@@ -47,6 +47,23 @@ def _unit(v, axis=-1):
     return v / np.maximum(np.linalg.norm(v, axis=axis, keepdims=True), 1e-9)
 
 
+def main_weights(main, cfg: Config = Config(), bones=SMPL_BONES):
+    """Bone weights (score(bone_weights=...)) for an exercise whose main bones are `main`, by name: 1 for
+    those, cfg.other_bones for the others. None (every bone counts alike) if `main` is None or empty.
+
+    The scorer itself knows no exercise: it compares all the bones it is given. Which of them carry the
+    exercise is the caller's knowledge (legs and trunk in a squat, the arms in a bench press), and this is how
+    it is passed on. The weights count in the speed (checkpoints) and in the pose distance (alignment, tau);
+    the bones of a unit (step5_segments) are reported for every bone whatever its weight."""
+    if not main:
+        return None
+    names = [n for n, _, _ in bones]
+    unknown = sorted(set(main) - set(names))
+    if unknown:
+        raise ValueError(f"unknown bones {unknown}: the bones are {names}")
+    return np.array([1.0 if n in main else cfg.other_bones for n in names])
+
+
 def track_from_joints(joints, t, up="y", conf=None, joint_names=None, bones=SMPL_BONES) -> Track:
     """joints [N, J, 3] (SMPL order, or any order with joint_names) -> heading-normalised bone track."""
     joints = np.asarray(joints, float)
