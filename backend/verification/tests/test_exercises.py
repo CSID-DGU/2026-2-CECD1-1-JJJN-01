@@ -142,10 +142,90 @@ def check_deadlift():
     print('deadlift: floor poses, lockout, movement and segment names ok')
 
 
+def bench_clip(ph, flare=55., drop=15.):
+    """A bench press with the timing of the squat phases ph -> (joints [T, 22, 3] cm, fps): lying on the back
+    (head towards -Z, feet on the floor), the upper arms come down from upright to `drop` deg below the
+    shoulder line, `flare` deg out from the line from the head to the feet; the forearms stay upright and
+    nothing else moves."""
+    fps = 30.
+    t = np.arange(int(round(sum(s for s, _ in ph) * fps)) + 1) / fps
+    q = syn._depth(ph, t)
+    zero = np.zeros(len(t))
+    xyz = lambda x, y, z: np.stack([x + zero, y + zero, z + zero], 1)
+    rad = np.radians
+    pelvis = xyz(0, 58, 0)
+    neck = pelvis + 50 * xyz(0, np.sin(rad(8)), -np.cos(rad(8)))
+    J = dict(pelvis=pelvis, neck=neck, head=neck + 18 * xyz(0, 0, -1))
+    for k, f in enumerate((0.25, 0.5, 0.75), 1):
+        J[f'spine{k}'] = pelvis + f * (neck - pelvis)
+    for side, sx in (('left', 1.), ('right', -1.)):                     # the person's left is +X
+        J[f'{side}_hip'] = xyz(sx * 9, 56, 2)
+        J[f'{side}_knee'] = J[f'{side}_hip'] + 44 * xyz(sx * np.sin(rad(10)) * np.cos(rad(15)), -np.sin(rad(15)),
+                                                        np.cos(rad(10)) * np.cos(rad(15)))
+        J[f'{side}_ankle'] = J[f'{side}_knee'] + xyz(0, -42, 0)
+        J[f'{side}_foot'] = J[f'{side}_ankle'] + xyz(0, -4, 13)
+        J[f'{side}_collar'], J[f'{side}_shoulder'] = neck + xyz(sx * 7, 0, 3), neck + xyz(sx * 18, -1, 5)
+        top = np.array([0., 1., 0.])
+        low = np.array([sx * np.sin(rad(flare)) * np.cos(rad(drop)), -np.sin(rad(drop)), np.cos(rad(flare)) * np.cos(rad(drop))])
+        om = np.arccos(top @ low)                                       # the upper arm turns from `top` to `low`
+        upper = (np.sin((1 - q) * om)[:, None] * top + np.sin(q * om)[:, None] * low) / np.sin(om)
+        J[f'{side}_elbow'] = J[f'{side}_shoulder'] + 28 * upper
+        J[f'{side}_wrist'] = J[f'{side}_elbow'] + xyz(0, 26, 0)
+    return np.stack([J[n] for n in SMPL_NAMES[:22]], 1), fps
+
+
+def check_bench_press():
+    """the bench-press module on clips whose movements are known, with the timing of the squat clip above"""
+    bench = exercises.get('bench_press')
+    names = list(SMPL_NAMES[:22])
+    joints, fps = bench_clip(syn.phases(reps=3))
+    body = Body(joints, names, fps)
+    a = bench.arms(body)
+    chest = bench.key_frames(body)
+    assert len(chest) == 3 and all(abs(f / fps - (1.8 + 2.6 * k)) < 0.2 for k, f in enumerate(chest)), chest
+    # the arms as they were put in: straight at the lockout; at the chest bent 90 + 15 deg and 55 deg out from the body
+    assert a['elbow_left'][0] < 1 and abs(a['elbow_left'][chest[0]] - 105) < 2 and abs(a['flare_right'][chest[0]] - 55) < 2
+    assert np.isnan(a['flare_left'][0]) and abs(a['arm'] - 54) < 0.5 and abs(a['hand'][0] - a['hand'][chest[0]] - 35.2) < 1
+    rest = set(bench.rest_frames(body).tolist())
+    assert 0 in rest and len(joints) - 1 in rest and not rest & set(chest), sorted(rest)[:5]
+    assert bench.moves(body, (0.8, 2.8), chest[0]) and not bench.moves(body, (0.0, 0.7), chest[0])
+    label = bench.labeller(joints, names, fps)
+    got = [label(0.0, 0.7, True, False), label(0.8, 1.8, False, False), label(1.8, 2.8, False, False),
+           label(0.8, 2.8, False, False), label(2.9, 3.3, False, False), label(8.1, 8.8, False, True)]
+    assert got == ['시작 자세', '하강', '프레스', '하강 · 프레스', '락아웃', '마무리 자세'], got
+    # the bar held at the chest for 1 s (from 1.8 s): named as such, and the key pose is where the hold ends
+    held, fps = bench_clip(syn.phases(reps=1, bottom=1.0))
+    assert bench.labeller(held, names, fps)(2.0, 2.6, False, False) == '가슴 터치'
+    key = bench.key_frames(Body(held, names, fps))
+    assert len(key) == 1 and abs(key[0] / fps - 2.7) < 0.2, key
+    assert bench.key_frames(Body(bench_clip([(3.0, 0.0)])[0], names, fps)) == []          # nobody presses: none
+    # the values the LLM gets: a user whose elbows flare 80 deg against the coach's 55, the repetitions as poseMetrics pairs them
+    user = Body(bench_clip(syn.phases(reps=3), flare=80.)[0], names, fps)
+    pm = dict(thresholds=dict(sameAngleDeg=8., sameHeightCm=3., sameKneeWidthRatio=0.15), repCount=dict(user=3, coach=3),
+              reps=[dict(index=k + 1, userSec=f / fps, coachSec=f / fps, segmentId=None) for k, f in enumerate(chest)])
+    m = bench.llm_metrics(user, body, pm, mirrored=False)
+    assert set(m) == {'armLengthCm', 'thresholds', 'repCount', 'lockout', 'reps', 'chestSummary'} and len(m['reps']) == 3
+    assert all(abs(r['chest']['diff']['elbowFlareDeg'][s] - 25) <= 2 for r in m['reps'] for s in ('left', 'right')), m['reps'][0]
+    assert m['lockout']['user']['elbowFlareDeg'] == dict(left=None, right=None) and m['chestSummary']['reps'] == 3
+    # lying down: the response does not name a difference towards the head or the feet, the LLM is told in those words
+    bones = [dict(bone='l_upper_arm', student_bone='l_upper_arm', deg=25., dir=dict(up=0.2, forward=-23., out=9.9))]
+    lying, = result_builder.deviations(bones, 'bench_press')
+    standing, = result_builder.deviations(bones, 'squat')
+    assert 'direction' not in lying and lying['components'] == standing['components'] and standing['direction'] == 'backward'
+    tucked, = result_builder.deviations([dict(bones[0], dir=dict(up=0.4, forward=17., out=-18.6))], 'bench_press')
+    assert tucked['direction'] == 'inward', tucked
+    result = dict(exercise='bench_press', poseMetrics=dict(repCount=dict(user=3, coach=3)),
+                  segments=[dict(id='seg-0', label='하강', verdict='match', deviations=[lying])])
+    told = feedback.llm_input(result, dict(segments=[{}], exerciseMetrics=m))
+    assert told['segments'][0]['deviations'][0]['direction'] == '머리 쪽으로' and told['poseMetrics'] is m, told['segments'][0]
+    print('bench press: chest poses, lockout, arm values, segment names and directions ok')
+
+
 def main():
     check_modules()
     check_squat()
     check_deadlift()
+    check_bench_press()
     print('exercise modules ok')
 
 

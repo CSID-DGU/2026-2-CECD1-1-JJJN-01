@@ -91,7 +91,7 @@ cd backend
 | `app/jobs/job_queue.py` | 작업 레코드, GPU 워커 1개(순서대로 1건씩) |
 | `app/jobs/pipeline_runner.py` | 실제 분석 러너: 정규화 → 추출 → 리타겟팅 → 채점, 실패 → 사용자 문장 |
 | `app/result/result_builder.py` | 파이프라인 결과 → `AnalysisResult` JSON |
-| `app/result/exercises/` | 종목별 모듈 (`squat.py`, `deadlift.py`): 주요 뼈, 구간 이름, 기준 자세의 위치, LLM 지시문의 종목 부분 |
+| `app/result/exercises/` | 종목별 모듈 (`squat.py`, `deadlift.py`, `bench_press.py`): 주요 뼈, 구간 이름, 기준 자세의 위치, LLM 지시문의 종목 부분 |
 | `app/result/pose_metrics.py` | 관절 각도 · 반복별 기준 자세의 값 (`poseMetrics`). 기준 자세가 어느 프레임인지는 종목 모듈이 정한다 |
 | `app/result/frame_map.py` | 3D 뷰어용 재생 순서: 두 스켈레톤의 프레임 순서, `frameMap`, 구간의 재생 시간 |
 | `app/result/llm/feedback.py` | LLM 피드백: 입력 요약, 프롬프트(공통 문장 + 종목 모듈의 문장), Gemini 호출(모델 대체), 출력 검증 |
@@ -109,8 +109,9 @@ cd backend
 |---|---|
 | `MAIN_BONES` 주요 뼈 | 정렬의 뼈 비중(`scorer_setup`), `deviations` 에 먼저 넣을 뼈 |
 | `labeller` 구간 이름 | `segments[].label` |
-| `key_frames` · `rest_frames` · `moves` 반복의 기준 자세와 쉬는 자세의 위치 (스쿼트: 최저점 / 선 자세, 데드리프트: 리프트가 시작되는 바닥 자세 / 다 일어선 자세) | `poseMetrics` |
+| `key_frames` · `rest_frames` · `moves` 반복의 기준 자세와 쉬는 자세의 위치 (스쿼트: 최저점 / 선 자세, 데드리프트: 리프트가 시작되는 바닥 자세 / 다 일어선 자세, 벤치프레스: 바가 가슴에 있는 자세 / 팔을 편 자세) | `poseMetrics` |
 | `PROMPT` 종목에 관한 문장과 예시 | LLM 지시문 (`feedback.system_prompt`) |
+| (필요한 종목만) `HIDDEN_DIRECTIONS`, `AXES_KO` · `DIR_KO`, `llm_metrics` | `deviations[].direction` 에서 뺄 방향, LLM 에 쓰는 방향 말, `poseMetrics` 대신 LLM 에 넘길 값 |
 
 종목을 추가하려면 모듈 파일을 만들어 `exercises/__init__.py` 의 `MODULES` 에 넣는다. 사용자에게 여는 것은
 `constants.SUPPORTED_EXERCISES` 다(모듈이 없는 종목을 열면 `test_exercises.py` 가 실패한다). 응답의 `poseMetrics` 는 필드
@@ -120,6 +121,17 @@ cd backend
 시작하든 바닥 자세에서 시작하든 반복은 리프트로 세고, 구간 이름은 셋업 / 리프트 / 락아웃 / 내리기다. API 가 받는
 종목이지만(`SUPPORTED_EXERCISES`) 기본 코치 영상이 없어 코치 영상을 직접 올려야 한다. 합성 스켈레톤으로만 확인했고 실제
 영상으로는 확인하지 못했다.
+
+벤치프레스 모듈은 어깨 대비 손 높이로 동작을 읽는다(누워서 하므로 골반과 상체는 움직이지 않는다). 구간 이름은 하강 /
+가슴 터치 / 프레스 / 락아웃이다. 누운 자세라서 두 가지가 다르다.
+- 방향: 채점 모듈의 "앞"은 선 사람의 발끝 방향이라 누우면 발 쪽이 된다. 화면 문구("코치보다 뒤로 N°")가 틀리게 읽히므로
+  머리 · 발 방향의 차이는 응답의 `deviations[].direction` 을 뺀다(프론트는 방향이 없으면 "코치보다 N° 차이"로 표시한다).
+  천장 · 바닥, 바깥 · 안쪽 방향은 그대로 보낸다. LLM 에는 "머리 쪽으로", "천장 쪽으로"처럼 누운 사람 기준의 말로 넘긴다.
+- 값: 응답의 `poseMetrics` 는 무릎 · 엉덩이 · 상체 값이라 벤치프레스에는 의미가 없다. 응답 형식은 그대로 두고, LLM 에는
+  그 자리에 팔의 값(팔꿈치 굽힘 · 벌림, 아래팔 기울기, 손 높이, 좌우 손 높이 차이)을 넘긴다. 이 값은 채점 결과와 함께
+  서버 안에서만 전달되고 응답에는 실리지 않는다.
+아직 `SUPPORTED_EXERCISES` 에 없어 API 는 벤치프레스를 받지 않는다. 합성 스켈레톤으로만 확인했고, 누운 자세의 영상에서
+스켈레톤 추출이 되는지는 확인하지 못했다.
 
 ## 결과 변환 규칙 (`result_builder.py`)
 
