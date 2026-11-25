@@ -39,9 +39,13 @@ class Config:
     # --- frame cost d (deg) = weighted mean bone-angle difference + direction term
     beta: float = 1.0                # direction term weight, in units of tau
     dir_gate: float = 0.2            # direction term only where both v > dir_gate
+    other_bones: float = 0.3         # weight of the bones that are not the exercise's main bones, where the caller
+                                     # names them (step1_preprocess.main_weights): an arm held differently in a
+                                     # squat is then a small difference, but still one (0 would make raising the
+                                     # arms the same as standing still)
 
     # --- thresholds (deg). Defaults come from a synthetic calibration; for real video the CLI sets
-    #     auto_tau=True (tau, kappa estimated from the coach's own repetitions) and pose_trim=0.3.
+    #     auto_tau=True (tau, kappa estimated from the coach's own clip).
     tau_deg: float = 4.05            # "same pose" tolerance = p95 of coach-vs-coach matched d
     kappa: float = 5.8               # drop threshold = kappa * tau
     auto_tau: bool = False           # estimate tau, kappa from the coach's own repetitions (pipeline.estimate_tau):
@@ -49,9 +53,14 @@ class Config:
     tau_range: tuple = (3.0, 15.0)   #   ... kept inside this range (deg)
     same_place: float = 0.5          #   same place = closer than same_place x one movement (the median distance
                                      #   between consecutive checkpoints)
-    kappa_min: float = 4.0           #   kappa = one movement / tau, never below this
-    pose_trim: float = 0.0           # alignment ignores the most different fraction of bones (0.3 for real
-                                     # video: a different arm position alone is not a different action)
+    kappa_min: float = 4.0           #   kappa = one movement / tau, never below this (a coach clip with one
+                                     #   repetition keeps the configured tau, and kappa is still read from it:
+                                     #   how far it gets from its first checkpoint / tau)
+    pose_trim: float = 0.0           # alignment ignores the most different fraction of bones. Not for real video
+                                     # (it was 0.3 there, so that a different arm position alone is not a different
+                                     # action): the bones that differ most are not the ones that matter least. At
+                                     # the bottom of a squat they are the trunk and a thigh, and a bench press
+                                     # moves two bones in all. Name the main bones instead (other_bones)
 
     # --- checkpoint alignment (Needleman-Wunsch)
     sigma: float = 3.0               # substitution cost  (sigma < 2*gap -> substitute beats miss+extra)

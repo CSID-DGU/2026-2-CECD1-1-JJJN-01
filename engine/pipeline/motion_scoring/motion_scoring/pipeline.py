@@ -52,7 +52,8 @@ class Result:
 
 
 def estimate_tau(C: Clip, cfg: Config):
-    """tau and kappa from the coach clip itself -> (tau, kappa), or (None, None) if it repeats too little.
+    """tau and kappa from the coach clip itself -> (tau, kappa). tau is None if the clip repeats too little
+    (kappa then belongs with cfg.tau_deg); both are None if it has no checkpoint at all.
 
     A coach who repeats a movement passes through the same places again and again (the top and the bottom
     of every repetition). Two visits to one place differ only by natural variation + pose-estimation noise,
@@ -62,20 +63,24 @@ def estimate_tau(C: Clip, cfg: Config):
     consecutive checkpoints, same place = closer than same_place x that. (Not from the checkpoint types: a
     coach who pauses at the bottom as well as at the top has pauses only, and consecutive pauses are top
     and bottom.) "A different action" is that movement scale: kappa = one movement / tau, at least kappa_min.
-    Needs three visits, i.e. two repetitions between two rests; one repetition keeps the Config values."""
+    tau needs three visits, i.e. two repetitions between two rests. One repetition does not show how much two
+    visits differ, so it keeps the configured tau. It does show how large the movement is, and that is not the
+    same from one exercise to the next (most of the body in a squat, two bones in a bench press), so kappa
+    is still read from the clip: how far it gets from the pose of its first checkpoint / the configured tau."""
     ev = detect_events(C, cfg)
+    if not ev:
+        return None, None
     dist = lambda a, b: float(pose_dist(a.pose, b.pose, C.w, trim=cfg.pose_trim))
     step = [dist(a, b) for a, b in zip(ev, ev[1:])]
-    if not step:
-        return None, None
-    move = float(np.median(step))
+    move = float(np.median(step)) if step else 0.0
     again = []
     for i, e in enumerate(ev):
         d = next((x for x in (dist(e, f) for f in ev[i + 1:]) if x < cfg.same_place * move), None)
         if d is not None:
             again.append(d)
     if len(again) < 3:
-        return None, None
+        reach = float(pose_dist(C.b, ev[0].pose, C.w, trim=cfg.pose_trim).max())
+        return None, max(cfg.kappa_min, reach / cfg.tau_deg)
     tau = float(np.clip(cfg.tau_gain * np.median(again), *cfg.tau_range))
     kappa = max(cfg.kappa_min, float(np.median([d for d in step if d >= cfg.same_place * move])) / tau)
     return tau, kappa
@@ -91,17 +96,20 @@ def score(coach: Track, student: Track, cfg: Config = Config(), bone_weights=Non
         C = Clip(coach, cfg, bone_weights, noise_floor=noise)
     if S.noise < noise:
         S = Clip(student, cfg, bone_weights, noise_floor=noise)
-    tau_from = "config"
+    tau_from = kappa_from = "config"
     if cfg.auto_tau:
         tau, kappa = estimate_tau(C, cfg)
         if tau is not None:
-            cfg, tau_from = replace(cfg, tau_deg=tau, kappa=kappa), "coach"
+            cfg, tau_from, kappa_from = replace(cfg, tau_deg=tau, kappa=kappa), "coach", "coach"
+        elif kappa is not None:
+            cfg, kappa_from = replace(cfg, kappa=kappa), "clip"
     res = _evaluate(C, S, cfg, mirrored=False)
     if try_mirror and any(n.startswith("l_") for n in student.bone_names):
         alt = _evaluate(C, Clip(student.mirrored(), cfg, bone_weights, noise_floor=noise), cfg, mirrored=True)
         if alt.debug["path_cost"] < 0.8 * res.debug["path_cost"]:   # clearly better only
             res = alt
     res.params["tau_from"] = tau_from          # "coach": estimated from its repetitions; "config": too few
+    res.params["kappa_from"] = kappa_from      # "coach": with tau; "clip": too few, the reach of the coach clip
     return res
 
 

@@ -18,30 +18,42 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 sys.path[:0] = [str(HERE), str(HERE.parent)]               # synthetic.py (this folder), the motion_scoring package
 import synthetic as syn  # noqa: E402
-from motion_scoring import Config, score, track_from_joints  # noqa: E402
+from motion_scoring import Config, main_weights, score, track_from_joints  # noqa: E402
 from motion_scoring.step1_preprocess import SMPL_NAMES, Clip  # noqa: E402
 from motion_scoring.step2_checkpoints import detect_events  # noqa: E402
 
-CFG = replace(Config(), auto_tau=True, pose_trim=0.3)      # the preset the backend uses (result_builder.py)
+# what the backend scores a squat with (result_builder.scorer_setup): tau and kappa from the coach's clip, and
+# the legs and the trunk counting more than the arms and the head when two poses are compared
+CFG = replace(Config(), auto_tau=True)
+SQUAT = ("trunk", "l_thigh", "r_thigh", "l_shank", "r_shank")
+WEIGHTS = main_weights(SQUAT, CFG)
 NOISE_CM = 0.2
 STRUCTURES = {"match", "substitution", "missing", "extra"}
 
 
-def track(ph, seed=1, fps=30.0, noise=NOISE_CM, cut=(0.0, 0.0), knees_cm=(0.0, 0.0), mirror=False, **body):
+def track(ph, seed=1, fps=30.0, noise=NOISE_CM, cut=(0.0, 0.0), knees_cm=(0.0, 0.0), arms_out=0.0, mirror=False,
+          **body):
     """Phases -> the scorer's input. cut = seconds removed from the start / end of the clip; knees_cm = the
-    (left, right) knee moved that far towards the other one; mirror = done like a mirror image, after that."""
+    (left, right) knee moved that far towards the other one; arms_out = both arms turned that many degrees out
+    to the sides at the shoulders, all the time; mirror = done like a mirror image, after that."""
     joints, fps = syn.skeleton(ph, fps=fps, noise_cm=noise, seed=seed, **body)
     joints = joints[int(round(cut[0] * fps)):len(joints) - int(round(cut[1] * fps))]
     for side, sign, cm in (("left", -1.0, knees_cm[0]), ("right", 1.0, knees_cm[1])):     # the left is +X
         joints[:, SMPL_NAMES.index(f"{side}_knee"), 0] += sign * cm
+    for side, sign in (("left", 1.0), ("right", -1.0)) if arms_out else ():
+        a = sign * np.radians(arms_out)                                    # about the forward axis, away from the body
+        shoulder = joints[:, SMPL_NAMES.index(f"{side}_shoulder")]
+        for k in (SMPL_NAMES.index(f"{side}_elbow"), SMPL_NAMES.index(f"{side}_wrist")):
+            x, y, z = (joints[:, k] - shoulder).T
+            joints[:, k] = shoulder + np.stack([x * np.cos(a) - y * np.sin(a), x * np.sin(a) + y * np.cos(a), z], 1)
     if mirror:
         joints = syn.mirrored(joints)
     return track_from_joints(joints, np.arange(len(joints)) / fps, "y")
 
 
-def compare(coach_ph, user_ph, coach=None, user=None, cfg=CFG):
+def compare(coach_ph, user_ph, coach=None, user=None, cfg=CFG, weights=WEIGHTS):
     """-> (Result, to_dict()) for a coach and a user given as phases (+ keyword arguments of track)."""
-    res = score(track(coach_ph, seed=1, **(coach or {})), track(user_ph, seed=2, **(user or {})), cfg)
+    res = score(track(coach_ph, seed=1, **(coach or {})), track(user_ph, seed=2, **(user or {})), cfg, weights)
     return res, res.to_dict()
 
 
@@ -59,13 +71,35 @@ def length(s, key="student_t"):
 
 def checkpoints(tr):
     """Types of the checkpoints of one clip: r = rest, p = pause, v = reversal."""
-    return "".join("v" if e.type == "reversal" else e.type[0] for e in detect_events(Clip(tr, CFG), CFG))
+    return "".join("v" if e.type == "reversal" else e.type[0] for e in detect_events(Clip(tr, CFG, WEIGHTS), CFG))
 
 
 def nth(ph, k, depth_at_end):
     """Index in ph of the k-th phase (0-based) that ends at that depth and is a movement."""
     hits = [i for i, (_, q) in enumerate(ph) if q == depth_at_end and (ph[i - 1][1] if i else 0.0) != q]
     return hits[k]
+
+
+def arm_exercise(ph, seed, part="upper"):
+    """The body stands still and, with the timing of the phases ph, part = "upper": both upper arms swing out
+    to the sides to 90 deg and back while the forearms keep pointing the way they did (two bones carry the
+    movement, as in a bench press); part = "fore": the forearms swing forward to 90 deg and back instead, the
+    upper arms stay (another movement with the same timing)."""
+    stand, fps = syn.skeleton([(1.0, 0.0)])
+    t = np.arange(int(round(sum(s for s, _ in ph) * fps)) + 1) / fps
+    a = np.radians(90.0) * syn._depth(ph, t)
+    joints = np.repeat(stand[:1], len(t), 0)
+    for side, sign in (("left", 1.0), ("right", -1.0)):                    # the left is +X
+        sh, el, wr = (stand[0, SMPL_NAMES.index(f"{side}_{n}")] for n in ("shoulder", "elbow", "wrist"))
+        if part == "upper":
+            elbow = sh + np.linalg.norm(el - sh) * np.stack([sign * np.sin(a), -np.cos(a), 0 * a], 1)
+            wrist = elbow + (wr - el)
+        else:
+            elbow = np.repeat(el[None], len(t), 0)
+            wrist = elbow + np.linalg.norm(wr - el) * np.stack([0 * a, -np.cos(a), np.sin(a)], 1)
+        joints[:, SMPL_NAMES.index(f"{side}_elbow")], joints[:, SMPL_NAMES.index(f"{side}_wrist")] = elbow, wrist
+    joints = joints + np.random.default_rng(seed).normal(0.0, NOISE_CM, joints.shape)
+    return track_from_joints(joints, t, "y")
 
 
 def bones_at(d, t, end=True):
@@ -139,6 +173,57 @@ def test_one_repetition_keeps_the_configured_tau():
     ph = syn.phases(reps=1)
     _, d = compare(ph, ph)
     assert d["params"]["tau_from"] == "config" and d["params"]["tau_deg"] == CFG.tau_deg, d["params"]
+
+
+def test_one_repetition_still_gives_the_size_of_the_movement():
+    """one repetition cannot give tau, but it shows how large one movement is: kappa x tau comes out as with
+    three repetitions, not as the configured value, which no exercise in particular has"""
+    _, one = compare(syn.phases(reps=1), syn.phases(reps=1))
+    _, three = compare(syn.phases(reps=3), syn.phases(reps=3))
+    p1, p3 = one["params"], three["params"]
+    assert (p1["tau_from"], p1["kappa_from"]) == ("config", "clip") and p3["kappa_from"] == "coach", (p1, p3)
+    size1, size3 = p1["kappa"] * p1["tau_deg"], p3["kappa"] * p3["tau_deg"]
+    assert abs(size1 / size3 - 1.0) < 0.15 and abs(size1 - CFG.kappa * CFG.tau_deg) > 10.0, (size1, size3)
+
+
+# ---------------------------------------------------------------- which bones count
+def test_main_weights():
+    names = track(syn.phases(reps=1)).bone_names
+    w = main_weights(SQUAT, CFG)
+    assert [float(w[names.index(n)]) for n in SQUAT] == [1.0] * 5 and float(w.sum()) == 5 + 5 * CFG.other_bones, w
+    assert main_weights(None) is None and main_weights(()) is None        # every bone alike
+    try:
+        main_weights(("torso",))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("a bone name the scorer does not have was accepted")
+
+
+def test_arms_held_differently_are_not_another_action():
+    """the user holds both arms 60 deg out to the sides: every unit is still a match, the checkpoints pair
+    clearly more cheaply than with every bone counting alike (about half), and the bones say how the arms
+    differ (they are reported whatever their weight)"""
+    ph = syn.phases(reps=3)
+    cost = lambda res: max(o["cost"] for o in res.debug["ops"] if o["kind"] == "match")
+    res, d = compare(ph, ph, user=dict(arms_out=60.0))
+    alike, _ = compare(ph, ph, user=dict(arms_out=60.0), weights=None)
+    assert structures(d) == ["match"] * 8, structures(d)
+    assert cost(res) < 0.7 * cost(alike) and cost(res) < CFG.sigma / 3, (cost(res), cost(alike))
+    arm = bones_at(d, 0.8 + 2.0, end=False)["l_upper_arm"]                # standing after the first repetition
+    assert 45.0 < arm["deg"] < 65.0 and arm["dir"]["out"] > 30.0, arm
+
+
+def test_a_movement_of_two_bones_is_seen():
+    """an exercise only two bones carry (the upper arms, as in a bench press): the same movement is a match,
+    another movement with the same timing (the forearms instead) is not. No bone is left out of the
+    comparison: leaving out the three that differ most leaves out such a movement itself"""
+    ph = syn.phases(reps=3)
+    w = main_weights(("l_upper_arm", "r_upper_arm", "l_forearm", "r_forearm"), CFG)
+    d = score(arm_exercise(ph, 1), arm_exercise(ph, 2), CFG, w).to_dict()
+    assert structures(d) == ["match"] * 8 and not any(s["pose"] for s in d["segments"]), d["segments"]
+    d = score(arm_exercise(ph, 1), arm_exercise(ph, 2, part="fore"), CFG, w).to_dict()
+    assert structures(d).count("substitution") >= 3, structures(d)
 
 
 # ---------------------------------------------------------------- few repetitions, clip edges
@@ -235,7 +320,7 @@ def test_visits_are_counted_on_the_scale_of_the_clip():
     tops alone are still one place when the bottoms were not found: "the same place" is measured against how
     far the clip moves at all, not against the distance between the checkpoints that happen to be there"""
     from motion_scoring.step2_checkpoints import _count_visits
-    clip = Clip(track(syn.phases(reps=2)), CFG)
+    clip = Clip(track(syn.phases(reps=2)), CFG, WEIGHTS)
     ev = detect_events(clip, CFG)
     assert [("v" if e.type == "reversal" else e.type[0], e.visit) for e in ev] == \
         [("r", 0), ("v", 0), ("p", 1), ("v", 1), ("r", 2)], [(e.type, e.visit) for e in ev]
@@ -336,7 +421,9 @@ def test_playback_keeps_the_real_speed():
     n = next(k for k, s in enumerate(d["segments"]) if s["timing"])
     k0, k1 = pb["segments"][n]
     waits = int((np.diff(pc[k0:k1 + 1]) == 0).sum())
-    assert (np.diff(ps[k0:k1 + 1]) == 1).all() and abs(waits * pb["dt"] - 0.5) < 0.2, waits      # 0.5 s longer
+    # as much longer as the unit takes the user: about 0.3 of the 0.5 s (the rest before it takes the rest)
+    longer = length(d["segments"][n]) - length(d["segments"][n], "coach_t")
+    assert (np.diff(ps[k0:k1 + 1]) == 1).all() and longer > 0.25 and abs(waits * pb["dt"] - longer) < 0.1, (waits, longer)
     assert (np.diff(pc[k0:k1 + 1])[-waits:] == 0).all(), "the coach waits at the end, it does not slow down"
     frame = lambda t: round(t / pb["dt"])
     for s, span in list(zip(d["segments"], pb["segments"]))[n + 1:]:      # each at the first frame of its own unit,
@@ -384,7 +471,7 @@ def test_bones_measure_a_known_difference():
     on the way up. Too little for a pose label (one bone of ten), but the bones show it"""
     ph = syn.phases(reps=3)
     coach, user = track(ph, seed=1), track(ph, seed=2, lean=1.25)         # 50 deg instead of 40 deg
-    d = score(coach, user, CFG).to_dict()
+    d = score(coach, user, CFG, WEIGHTS).to_dict()
     k = coach.bone_names.index("trunk")
     for rep in range(3):
         i = nth(ph, rep, 1.0)
@@ -407,7 +494,7 @@ def test_bones_do_not_depend_on_the_frame_alignment():
     give another value in every repetition; the pose label names the same bones with the same values"""
     ph, shallow = syn.phases(reps=3), syn.phases(reps=3, depth=0.8)
     coach, user = track(ph, seed=1), track(shallow, seed=2)
-    d = score(coach, user, CFG).to_dict()
+    d = score(coach, user, CFG, WEIGHTS).to_dict()
     assert structures(d) == ["match"] * 8, structures(d)
     k = coach.bone_names.index("l_thigh")
     seen = []
@@ -430,9 +517,10 @@ def test_bones_do_not_depend_on_the_frame_alignment():
 
 def test_bones_name_the_students_own_side():
     ph = syn.phases(reps=3)
-    # both knees 4 cm closer together: about 5 deg, too little for a pose label, but the bones show which way
+    # both knees 4 cm closer together: about 5 deg in each of the four leg bones, and the bones show which way
+    # (with the legs as main bones that is just over tau where tau is at its floor of 3 deg: a pose label or not)
     _, d = compare(ph, ph, user=dict(knees_cm=(4.0, 4.0)))
-    assert set(structures(d)) == {"match"} and not any(s["pose"] for s in d["segments"]), d["segments"]
+    assert set(structures(d)) == {"match"}, d["segments"]
     for s in d["segments"]:
         b = {x["bone"]: x for x in s["bones"]}
         assert all(-9.0 < b[n]["dir"]["out"] < -3.0 for n in ("l_thigh", "r_thigh")), (b["l_thigh"], b["r_thigh"])

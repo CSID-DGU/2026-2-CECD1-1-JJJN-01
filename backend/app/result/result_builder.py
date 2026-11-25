@@ -6,6 +6,8 @@ pairs (Result.debug['path']) and its playback order (Result.playback()) are avai
 does not contain them.
 
 Mapping
+  scoring    motion_scoring with the real-video preset, and the exercise's main bones (MAIN_BONES) counting more
+             than the others when it lines the two clips up (scorer_setup)
   skeleton   SMPL-22 (bvh_to_npz) -> the 15 frontend joint names, cm -> m, Y up, floor y = 0,
              each sequence's first-frame pelvis moved to x = z = 0 (overlay view)
   segments   motion_scoring units: structure -> verdict (substitution -> substitute),
@@ -51,7 +53,8 @@ FRONT_BONES = {
     'l_forearm': 'left_forearm', 'r_forearm': 'right_forearm',
 }
 VERDICT = {'match': 'match', 'missing': 'missing', 'extra': 'extra', 'substitution': 'substitute'}
-# the bones an exercise is judged by (motion_scoring names): a segment's deviations name these first
+# the bones an exercise is judged by (motion_scoring names): a segment's deviations name these first, and the
+# scorer lines the two clips up mostly by them (scorer_setup)
 MAIN_BONES = {'squat': ('trunk', 'l_thigh', 'r_thigh', 'l_shank', 'r_shank')}
 MAX_DEVIATIONS = 2                       # per segment
 # deviations[].direction: the largest component of the difference and its sign
@@ -119,6 +122,25 @@ def deviations(bones, exercise):
     return out[:MAX_DEVIATIONS]
 
 
+def scorer_setup(exercise):
+    """How the app calls motion_scoring for an exercise -> (Config, bone weights).
+
+    The real-video preset (tau and kappa from the coach's own clip), and the weights with which the scorer
+    compares two poses: 1 for the exercise's main bones, Config.other_bones for the rest, so that the legs and
+    the trunk decide whether two squats are at the same place and an arm held differently does not. None
+    (every bone alike) for an exercise without MAIN_BONES. The scorer leaves no bone out (it used to leave
+    out the three that differ most, and at the bottom of a squat those are the trunk and a thigh).
+    The experiments under verification/ take the setup from here, so that they look at the same alignment as
+    the app. pipeline.validation.score_user has a preset of its own: its score.json is not the app's."""
+    from pipeline.common.paths import SCORING_DIR
+    if str(SCORING_DIR) not in sys.path:
+        sys.path.insert(0, str(SCORING_DIR))
+    from dataclasses import replace
+    from motion_scoring import Config, main_weights
+    cfg = replace(Config(), auto_tau=True)
+    return cfg, main_weights(MAIN_BONES.get(exercise), cfg)
+
+
 def build_segments(units, exercise, label_fn):
     out = []
     for k, u in enumerate(units):
@@ -145,17 +167,13 @@ def build_result(job_id, exercise, retarget_dir, with_score=False, playback=True
     frame pairs as `alignment` in place of `frameMap` (for experiments that check the analysis against the
     videos; the API never sends this form)."""
     from pipeline.bvh_to_npz import bvh_joints
-    from pipeline.common.paths import SCORING_DIR
-    if str(SCORING_DIR) not in sys.path:
-        sys.path.insert(0, str(SCORING_DIR))
-    from dataclasses import replace
-    from motion_scoring import Config, score, track_from_joints
+    cfg, weights = scorer_setup(exercise)                               # (puts the scoring package on sys.path)
+    from motion_scoring import score, track_from_joints
 
     coach, names, fps_c = bvh_joints(retarget_dir / 'coach_on_user_pan.bvh')
     user, _, fps_u = bvh_joints(retarget_dir / 'user.bvh')
-    cfg = replace(Config(), auto_tau=True, pose_trim=0.3)               # as pipeline.validation.score_user
     track = lambda j, fps: track_from_joints(j, np.arange(len(j)) / fps, 'y', None, names)
-    res = score(track(coach, fps_c), track(user, fps_u), cfg, try_mirror=True)
+    res = score(track(coach, fps_c), track(user, fps_u), cfg, weights, try_mirror=True)
     d = res.to_dict()
 
     pel = names.index('pelvis')

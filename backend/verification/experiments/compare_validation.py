@@ -167,15 +167,11 @@ def case_no_rest(B, rep=1):
 
 def coach_pauses(B):
     """Standing pauses of the base as motion_scoring itself detects them: [(i0, i1)] frames (clip edges excluded)."""
-    from pipeline.common.paths import SCORING_DIR
-    if str(SCORING_DIR) not in sys.path:
-        sys.path.insert(0, str(SCORING_DIR))
-    from dataclasses import replace
-    from motion_scoring import Config, track_from_joints
+    cfg, weights = rb.scorer_setup('squat')            # as build_result scores it (puts the scoring package on sys.path)
+    from motion_scoring import track_from_joints
     from motion_scoring.step1_preprocess import Clip
     from motion_scoring.step2_checkpoints import detect_events
-    cfg = replace(Config(), auto_tau=True, pose_trim=0.3)
-    X = Clip(track_from_joints(B.X, np.arange(len(B.X)) / B.fps, 'y', None, B.names), cfg)
+    X = Clip(track_from_joints(B.X, np.arange(len(B.X)) / B.fps, 'y', None, B.names), cfg, weights)
     return [(e.i0, e.i1) for e in detect_events(X, cfg)
             if e.type == 'pause' and B.y[(e.i0 + e.i1) // 2] > B.stand - 8]
 
