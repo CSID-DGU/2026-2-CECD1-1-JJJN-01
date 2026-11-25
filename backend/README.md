@@ -64,6 +64,7 @@ cd backend
 테스트:
 ```bash
 ../.venv/bin/python verification/tests/test_api.py            # 계약 · 거부 케이스 (demo, 몇 초)
+../.venv/bin/python verification/tests/test_exercises.py      # 종목 모듈이 갖춰야 할 것 (GPU 없이, 1초)
 ../.venv/bin/python verification/tests/test_pipeline_e2e.py   # 실제 분석: child_squat 성공 + 사람 없는 영상 실패 (약 4분)
 ```
 
@@ -90,12 +91,30 @@ cd backend
 | `app/jobs/job_queue.py` | 작업 레코드, GPU 워커 1개(순서대로 1건씩) |
 | `app/jobs/pipeline_runner.py` | 실제 분석 러너: 정규화 → 추출 → 리타겟팅 → 채점, 실패 → 사용자 문장 |
 | `app/result/result_builder.py` | 파이프라인 결과 → `AnalysisResult` JSON |
-| `app/result/pose_metrics.py` | 관절 각도 · 반복별 최저점 (`poseMetrics`) |
+| `app/result/exercises/` | 종목별 모듈 (지금은 `squat.py`): 주요 뼈, 구간 이름, 기준 자세의 위치, LLM 지시문의 종목 부분 |
+| `app/result/pose_metrics.py` | 관절 각도 · 반복별 기준 자세의 값 (`poseMetrics`). 기준 자세가 어느 프레임인지는 종목 모듈이 정한다 |
 | `app/result/frame_map.py` | 3D 뷰어용 재생 순서: 두 스켈레톤의 프레임 순서, `frameMap`, 구간의 재생 시간 |
-| `app/result/llm/feedback.py` | LLM 피드백: 입력 요약, 프롬프트, Gemini 호출(모델 대체), 출력 검증 |
+| `app/result/llm/feedback.py` | LLM 피드백: 입력 요약, 프롬프트(공통 문장 + 종목 모듈의 문장), Gemini 호출(모델 대체), 출력 검증 |
 | `app/debug/api_log.py` | 요청 · 응답 기록 (개발 · 디버깅용) |
 | `app/debug/demo_runner.py` | demo 러너 (`ANALYSIS_RUNNER=demo`, 분석 없이 기존 결과 반환) |
 | `app/constants.py` | 경로, 업로드 제한, 코치 영상 목록(`COACHES`), LLM · 자세 판정 설정값 |
+
+## 종목 모듈 (`app/result/exercises/`)
+
+종목마다 달라지는 것은 그 종목의 모듈 하나에 모여 있고, 나머지 코드는 요청의 `exercise` 값으로 모듈을 골라 묻는다.
+모듈 이름은 API 의 종목 값(`squat`, `deadlift`, `bench_press`)과 같아야 한다. 채점 모듈(motion_scoring)은 종목을 모르고,
+주요 뼈 목록만 비중으로 받는다.
+
+| 모듈이 갖는 것 | 쓰이는 곳 |
+|---|---|
+| `MAIN_BONES` 주요 뼈 | 정렬의 뼈 비중(`scorer_setup`), `deviations` 에 먼저 넣을 뼈 |
+| `labeller` 구간 이름 | `segments[].label` |
+| `key_frames` · `rest_frames` · `moves` 반복의 기준 자세(스쿼트: 최저점)와 쉬는 자세(스쿼트: 선 자세)의 위치 | `poseMetrics` |
+| `PROMPT` 종목에 관한 문장 3묶음 | LLM 지시문 (`feedback.system_prompt`) |
+
+종목을 추가하려면 모듈 파일을 만들어 `exercises/__init__.py` 의 `MODULES` 에 넣는다. 사용자에게 여는 것은
+`constants.SUPPORTED_EXERCISES` 다(모듈이 없는 종목을 열면 `test_exercises.py` 가 실패한다). 응답의 `poseMetrics` 는 필드
+이름이 스쿼트 기준(`standing`, `bottom`)으로 정해져 있어, 다른 종목도 같은 자리에 자기 기준 자세의 값을 넣는다.
 
 ## 결과 변환 규칙 (`result_builder.py`)
 
@@ -111,7 +130,7 @@ cd backend
   (0.1초 이상 이어진 값. 한두 프레임만 튀는 값은 세지 않는다).
   `POSE_SAME_DEG` 이상인 뼈 가운데 종목의 주요 뼈(스쿼트: 몸통 · 허벅지 · 정강이)를 먼저, 큰 순서로 2개까지 넣는다.
   `angleDiffDeg` 는 뼈 방향 사이 각도(항상 0 이상)이고, `direction` / `components` 가 어느 쪽으로 다른지를 붙인다 (아래).
-- `label`: 스쿼트 기준. 구간 동안 골반 높이 변화로 하강 / 상승 / 하강 · 상승 / 바닥 유지 /
+- `label`: 종목 모듈이 붙인다. 스쿼트는 구간 동안 골반 높이 변화로 하강 / 상승 / 하강 · 상승 / 바닥 유지 /
   시작 자세 / 마무리 자세 / 선 자세 유지.
 - 재생 순서 (`app/result/frame_map.py`): `student` 와 `coachRetargeted` 는 원본 프레임 그대로가 아니라 motion_scoring 의
   재생 순서(`Result.playback()`)대로 다시 배열해서 보낸다. 둘의 길이가 같고, k번째끼리 같이 그리면 된다.
@@ -131,7 +150,8 @@ cd backend
 - `poseMetrics` (`app/result/pose_metrics.py`, 채점 모듈은 그대로): 같은 SMPL-22 골격에서 직접 잰 관절 측정.
   - 몸 기준 좌표: x = 사람의 오른쪽(엉덩이 축), y = 위, z = 앞(발끝 방향).
   - 값: 무릎 굽힘 · 엉덩이 굽힘(좌우), 상체 숙임, 엉덩이 − 무릎 높이(cm), 골반 내려간 거리(cm), 무릎 간격 ÷ 발목 간격.
-  - `reps`: 골반 높이 최저점(반복마다)을 DTW 정렬로 코치 최저점과 짝지음. 짝이 없으면 한쪽 null (반복 수 차이).
+  - `reps`: 반복마다의 기준 자세(종목 모듈의 `key_frames`. 스쿼트는 골반 높이 최저점)를 코치의 것과 짝지음.
+    짝이 없으면 한쪽 null (반복 수 차이).
   - `standing`(선 자세 중앙값), `bottomSummary`(짝 맞은 반복들의 범위), `repCount`,
     `legLengthCm`(사용자 다리 길이), `thresholds`(말하지 않을 작은 차이 기준. 길이는 다리 길이 비율).
   - 길이 기준은 모두 다리 길이 비율: 최저점 최소 깊이 7 %, 선 자세 범위 3.5 %.
