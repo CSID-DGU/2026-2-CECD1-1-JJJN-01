@@ -62,8 +62,8 @@ def check_pose_metrics(pm, seg_ids):
         assert rep['segmentId'] is None or rep['segmentId'] in seg_ids, rep
 
 
-def check_result(r, job_id):
-    assert r['jobId'] == job_id and r['exercise'] == 'squat'
+def check_result(r, job_id, exercise='squat'):
+    assert r['jobId'] == job_id and r['exercise'] == exercise
     for s in r['segments']:
         assert isinstance(s['id'], str) and isinstance(s['label'], str) and s['verdict'] in VERDICTS
         for k in ('studentRange', 'coachRange'):
@@ -105,7 +105,7 @@ def check_result(r, job_id):
 def main():
     c = TestClient(app)
     # rejections
-    bad = c.post('/analysis', data={'exercise': 'deadlift', 'coachId': 'squat-diag'},
+    bad = c.post('/analysis', data={'exercise': 'bench_press', 'coachId': 'squat-diag'},     # no module yet
                  files={'video': ('a.mp4', VIDEO.read_bytes(), 'video/mp4')})
     assert bad.status_code == 400 and 'message' in bad.json(), bad.text
     bad = c.post('/analysis', data={'exercise': 'squat', 'coachId': 'nope'},

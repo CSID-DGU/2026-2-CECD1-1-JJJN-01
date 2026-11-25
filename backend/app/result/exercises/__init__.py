@@ -10,10 +10,15 @@ Everything else in app/result is the same for every exercise and asks the module
                         the Korean name of the segment [t0, t1] s of that clip (result_builder.build_result)
   key_frames(body)      the frame of every repetition's key pose (squat: the bottoms)    | poseMetrics is
   rest_frames(body)     the frames of the pose the exercise rests in (squat: standing)   | measured at these
-  moves(body, r)        the range r (s) holds a whole repetition's movement, not a hold  | (pose_metrics.py)
+  moves(body, r, key)   the range r (s) holds the movement of the repetition whose key   | (pose_metrics.py)
+                        pose is at the frame key, not just a hold or the way to it       |
   PROMPT                what the LLM is told about the exercise: `deviations` (what a segment's deviations
-                        are in it), `pose_metrics` (what poseMetrics holds), `rules` (what to look at first).
-                        llm/feedback.py puts them into the instruction that is the same for every exercise
+                        are in it), `pose_metrics` (what poseMetrics holds), `rules` (what to look at first),
+                        and the few words of the common text that are about it: `missing_example`,
+                        `extra_example` (a movement only the coach / only the user makes), `rest_where`,
+                        `rest_labels` (where it rests, and the names of those segments), `still` (how the
+                        coach is when resting). llm/feedback.py puts them into the instruction that is the
+                        same for every exercise
 
 body is a pose_metrics.Body. motion_scoring itself knows no exercise: it is given the main bones as weights
 and nothing else.
@@ -21,9 +26,9 @@ and nothing else.
 Adding an exercise is adding its module here. The API only accepts it once it is in
 constants.SUPPORTED_EXERCISES as well.
 """
-from . import squat
+from . import deadlift, squat
 
-MODULES = {'squat': squat}
+MODULES = {'squat': squat, 'deadlift': deadlift}
 
 
 def get(exercise):
