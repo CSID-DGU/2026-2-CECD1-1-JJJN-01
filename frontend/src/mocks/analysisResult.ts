@@ -8,7 +8,8 @@
  *
  * 다시 만들기 (runs/coach_user/posture_squat 이 있을 때):
  *   backend/ 에서 build_result('mock-posture-squat', 'squat', retarget_dir, with_score=True) + generate_feedback
- *   → result.json, engine/ 에서 coach_on_video → overlay.mp4 (ffmpeg -crf 28 로 줄여서 넣었다)
+ *   → result.json, engine/ 에서 coach_on_video → overlay.mp4 (ffmpeg -crf 28 로 줄여서 넣었다),
+ *   view.json 의 viewDirection 을 result.json 에 넣었다 (백엔드가 응답에 붙이는 것과 같다)
  *
  * 타입(src/types/analysis.ts)이 바뀌면 이 파일과 result.json 을 같이 고친다.
  */

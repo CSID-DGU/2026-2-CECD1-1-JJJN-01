@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Grid, OrbitControls } from '@react-three/drei';
-import type { FrameMapKind, SkeletonSequence } from '@/types/analysis';
+import type { FrameMapKind, SkeletonSequence, Vec3 } from '@/types/analysis';
 // import { WAITING_LABEL } from '@/utils/segments'; // "나만/코치만 움직이는 중" 문구 숨김
 import { computeBounds, resolveBones, sampleFrame } from '@/utils/skeleton';
 import { cn } from '@/utils/cn';
@@ -21,6 +21,8 @@ interface SkeletonViewerProps {
   highlightBones: Set<string>;
   layout: ViewerLayout;
   onLayoutChange: (layout: ViewerLayout) => void;
+  /** 첫 시점: 몸 → 카메라 단위벡터 (AnalysisResult.viewDirection). 없으면 비스듬한 기본 시점 */
+  viewDirection?: Vec3;
   /** 바깥 틀. 높이를 정해 주면 그림 영역이 남은 높이를 채운다 (기본: 폭에 맞춘 정사각형) */
   className?: string;
 }
@@ -43,6 +45,7 @@ export function SkeletonViewer({
   highlightBones,
   layout,
   onLayoutChange,
+  viewDirection,
   className,
 }: SkeletonViewerProps) {
   const studentBones = useMemo(() => resolveBones(student.jointNames), [student.jointNames]);
@@ -51,10 +54,13 @@ export function SkeletonViewer({
 
   const sideOffset = layout === 'side' ? bounds.size * 0.45 : 0;
   const { center, size } = bounds;
+  // 기본 시점과 같은 거리(약 2.3 × size)에서, 영상 카메라 방향이 있으면 그쪽에서 본다
+  const [dx, dy, dz] = viewDirection ?? [1.2 / 2.27, 0.35 / 2.27, 1.9 / 2.27];
+  const distance = size * 2.27;
   const cameraPosition: [number, number, number] = [
-    center[0] + size * 1.2,
-    center[1] + size * 0.35,
-    center[2] + size * 1.9,
+    center[0] + dx * distance,
+    center[1] + dy * distance,
+    center[2] + dz * distance,
   ];
   // 겹쳐 보기에서는 코치를 얇고 반투명하게 그려서 내 스켈레톤(과 빨간 뼈)이 앞에 읽히게 한다
   const coachGhost = layout === 'overlay';

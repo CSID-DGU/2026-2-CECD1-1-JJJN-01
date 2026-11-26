@@ -62,6 +62,6 @@ src/
 ## 현재 상태 (2026-11-07)
 
 - 4개 화면 + mock 으로 끝까지 동작. `pnpm typecheck` · `pnpm lint` · `pnpm format:check` 통과
-- `constants/dev.ts` 의 `SKIP_INPUT_GATES = true` 가 임시로 켜져 있다: 종목 · 영상 없이도 다음 화면으로 넘어간다. 실제 API 연결 전에 끈다
+- `constants/dev.ts` 의 `SKIP_INPUT_GATES` 는 mock 모드(`VITE_USE_MOCK=true` 또는 `VITE_API_BASE_URL` 비어 있음)에서만 켜진다: 종목 · 영상 없이도 다음 화면으로 넘어간다. 실제 백엔드에 붙이면 자동으로 꺼진다
 - 미확정: API 스키마, 촬영 가이드 문구(지금은 임시), LLM 피드백 형식, 점수 산식 · 표현
 - 남은 일: 기본 코치 영상 실제 데이터, 실제 API 연결

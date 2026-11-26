@@ -249,4 +249,9 @@ export interface AnalysisResult {
    * 만들지 못했으면 없다: 화면은 3D 뷰어만 보여준다.
    */
   overlayUrl?: string;
+  /**
+   * 3D 뷰어 첫 시점: 사용자 몸에서 사용자 영상 카메라 쪽을 향하는 단위벡터 (student.frames 와 같은 좌표).
+   * 3D 가 영상과 같은 방향에서 시작한다. 없으면 뷰어 기본 시점.
+   */
+  viewDirection?: Vec3;
 }

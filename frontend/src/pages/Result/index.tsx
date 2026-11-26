@@ -79,6 +79,7 @@ export function ResultPage() {
       highlightBones={highlightBones}
       layout={layout}
       onLayoutChange={setLayout}
+      viewDirection={result.viewDirection}
       className="h-full"
     />
   );

@@ -16,6 +16,8 @@ IK BVH, wham.npz pose_world and report.json.
 Writes <out>/:
   overlay.mp4     H.264, playback order, fps 1 / pb dt, long side <= --long-side
   playback.json   pb (student / coach BVH frame per playback frame, segments, dt), mirrored, frames, fps
+  view.json       viewDirection: unit vector from the user's body to the camera in the frame of the API
+                  skeletons (user.bvh: WHAM world turned to face +Z, Y up), for the 3D viewer's first view
 """
 import argparse
 import json
@@ -69,6 +71,23 @@ def coach_meshes(body, user, pose, pb, anchor):
     return [(f, None if i is None else verts[i]) for f, i in keys]
 
 
+def view_direction(body, user):
+    """Body -> camera, unit, in the user's BVH frame (= the API skeletons'), averaged over the frames WHAM saw.
+    Camera centre in WHAM world: -R^T t of the per-frame world -> camera move (place.StudentFrame); the BVH
+    world is WHAM's turned by yaw_matrix(-initial_yaw) (run_video S1)."""
+    from pipeline.skeleton_extract.to_mixamo_format.canonicalize import yaw_matrix
+    dirs = []
+    for f in np.flatnonzero(user.npz['detected']):
+        st = P.StudentFrame(body, user.npz, f)
+        if st.ok:
+            d = -st.R.T @ st.t - st.anchors['pelvis']
+            dirs.append(d / np.linalg.norm(d))
+    if not dirs:
+        return None
+    v = yaw_matrix(-np.radians(user.report['initial_yaw_deg'])) @ np.mean(dirs, 0)
+    return v / np.linalg.norm(v)
+
+
 def write_video(path, user, frames, faces, fps, long_side, alpha):
     w, h = (float(x) for x in user.npz['img_size'])
     s = min(1., long_side / max(w, h))
@@ -113,8 +132,11 @@ def main(argv=None):
     size = write_video(out / 'overlay.mp4', user, frames, body.faces, fps, opt.long_side, opt.alpha)
     (out / 'playback.json').write_text(json.dumps(jsonable(dict(pb, mirrored=mirrored, frames=len(frames),
                                                                 fps=fps)), indent=1))
+    view = view_direction(body, user)
+    (out / 'view.json').write_text(json.dumps(dict(viewDirection=None if view is None else
+                                                   [round(float(x), 4) for x in view])))
     print(f'overlay: {len(frames)} frames {size[0]}x{size[1]} @ {fps:.2f} fps, mirrored {mirrored}, '
-          f'{opt.device}: SMPL {t1 - t0:.0f} s, video {time.time() - t1:.0f} s')
+          f'{opt.device}: SMPL {t1 - t0:.0f} s, video {time.time() - t1:.0f} s, view {view}')
     print(f'Wrote {out}')
 
 

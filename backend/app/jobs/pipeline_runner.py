@@ -3,14 +3,17 @@
   normalize   ffmpeg -> H.264, 30 fps, rotation applied, long side <= 1920   (user.mp4 / coach.mp4)
   extracting  pipeline.skeleton_extract.run_video (WHAM -> IK) on the user video (and the uploaded coach video)
   retargeting pipeline.retarget.coach_to_user (PAN): coach motion on the user's body
-  scoring     motion_scoring + conversion to the frontend result (result/result_builder.py)
+  scoring     motion_scoring + conversion to the frontend result (result/result_builder.py), then the SMPL
+              overlay video (pipeline.overlay.coach_on_video, WHAM venv); a failure only leaves `overlayUrl` out
   llm         Gemini feedback (result/llm/feedback.py); a failure only leaves `feedback` out
 
 Everything a job produces stays in data/jobs/<jobId>/:
   upload_user.<ext> (upload), user.mp4 (normalized), user_run/ (run_video), retarget/ (coach_to_user),
-  logs/<step>.log (pipeline output), result.json, job.json, error.log on unexpected errors.
+  overlay/ (overlay.mp4, playback.json, view.json), logs/<step>.log (pipeline output), result.json, job.json,
+  error.log on unexpected errors.
 Pipeline steps run as subprocesses of the project venv (WHAM itself runs in .venv-wham).
 """
+import json
 import re
 import subprocess
 import threading
@@ -37,7 +40,7 @@ FAILURES = [
     (r'CUDA out of memory|OutOfMemoryError', MSG_BUSY),
 ]
 
-TIMEOUT = dict(normalize=300, extract=1200, retarget=600)
+TIMEOUT = dict(normalize=300, extract=1200, retarget=600, overlay=300)
 
 
 class StepFailed(Exception):
@@ -108,6 +111,29 @@ def extract(video, out, logs, on_progress, ground='frame'):
     return out
 
 
+def overlay(job, user_run, coach_run, retarget, frames, logs):
+    """The SMPL overlay video of a finished scoring -> the result fields it adds (overlayUrl, viewDirection), or
+    {} when it could not be made (the result goes out without it; logs/overlay.log says why). Its frames must be
+    the result's playback frames (frames = len(student.frames)), else the video would not match the viewer."""
+    out = Path(job.dir) / 'overlay'
+    try:
+        run_step('overlay', [constants.WHAM_PYTHON, '-m', 'pipeline.overlay.coach_on_video', '--user-run', user_run,
+                             '--coach-run', coach_run, '--retarget', retarget, '--exercise', job.exercise,
+                             '--out', out], logs, timeout=TIMEOUT['overlay'])
+        made = json.loads((out / 'playback.json').read_text())['frames']
+        if made != frames:
+            raise ValueError(f'overlay has {made} frames, the result {frames}')
+        view = json.loads((out / 'view.json').read_text())['viewDirection']
+    except (StepFailed, UserFacingError, OSError, KeyError, ValueError) as e:
+        with (logs / 'overlay.log').open('a') as f:
+            f.write(f'\noverlay left out: {type(e).__name__}: {e}\n')
+        return {}
+    fields = dict(overlayUrl=f'/analysis/{job.jobId}/overlay.mp4')
+    if view:
+        fields['viewDirection'] = view
+    return fields
+
+
 def pipeline_runner(job, set_status):
     d = Path(job.dir)
     logs = d / 'logs'
@@ -137,6 +163,8 @@ def pipeline_runner(job, set_status):
 
     set_status('scoring', 0.9)
     result, score = build_result(job.jobId, job.exercise, retarget, with_score=True)
+    set_status('scoring', 0.92)
+    result.update(overlay(job, runs['user'], coach_run, retarget, len(result['student']['frames']), logs))
 
     set_status('llm', 0.95)
     feedback = generate_feedback(result, score, logs)          # None: no feedback (see logs/llm.log)

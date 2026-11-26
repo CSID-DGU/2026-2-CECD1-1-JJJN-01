@@ -16,6 +16,8 @@ PROJECT = BACKEND.parent                                            # monorepo r
 # when the engine or the venv lives elsewhere.
 PIPELINE_REPO = Path(_os.environ.get('PIPELINE_REPO', PROJECT / 'engine'))          # pipeline/ lives here
 PIPELINE_PYTHON = Path(_os.environ.get('PIPELINE_PYTHON', PROJECT / '.venv/bin/python'))
+# WHAM venv (torch + smplx): the SMPL overlay (pipeline.overlay.coach_on_video) runs here
+WHAM_PYTHON = Path(_os.environ.get('WHAM_PYTHON', PROJECT / '.venv-wham/bin/python'))
 DATA_DIR = BACKEND / 'data'
 JOBS_DIR = DATA_DIR / 'jobs'
 
