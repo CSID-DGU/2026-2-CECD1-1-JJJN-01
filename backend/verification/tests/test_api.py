@@ -94,12 +94,26 @@ def check_result(r, job_id, exercise='squat'):
     shown = [s['studentRange'] for s in r['segments'] if 'studentRange' in s]
     assert all(0 <= a < b <= nS / r['student']['fps'] + 1e-9 for a, b in shown), 'studentRange outside the timeline'
     assert all(a[1] == b[0] for a, b in zip(shown, shown[1:])), 'a hole between two segments on the timeline'
+    if 'overlayUrl' in r:                                 # SMPL overlay (optional: left out when it fails)
+        assert r['overlayUrl'] == f'/analysis/{job_id}/overlay.mp4', r['overlayUrl']
+    if 'viewDirection' in r:                              # the 3D viewer's first view, a unit vector
+        v = r['viewDirection']
+        assert len(v) == 3 and all(num(x) for x in v) and abs(sum(x * x for x in v) - 1) < 1e-3, v
     if 'feedback' in r:                                   # llm stage (optional)
         fb, ids = r['feedback'], {s['id'] for s in r['segments']}
         assert isinstance(fb['summary'], str) and fb['summary'].strip()
         for it in fb['items']:
             assert isinstance(it['text'], str) and it['text'].strip()
             assert 'segmentId' not in it or it['segmentId'] in ids, it
+
+
+def check_overlay(c, r):
+    """overlayUrl is served, and in parts (the browser seeks with Range requests)."""
+    full = c.get(r['overlayUrl'])
+    assert full.status_code == 200 and full.headers['content-type'] == 'video/mp4', full.status_code
+    part = c.get(r['overlayUrl'], headers={'Range': 'bytes=0-99'})
+    assert part.status_code == 206 and len(part.content) == 100, part.status_code
+    return len(full.content)
 
 
 def main():
@@ -118,6 +132,7 @@ def main():
                  files={'video': ('a.mp4', b'not a video', 'video/mp4')})
     assert bad.status_code == 400 and '읽을 수 없' in bad.json()['message'], bad.text
     assert c.get('/analysis/unknown').status_code == 404
+    assert c.get('/analysis/unknown/overlay.mp4').status_code == 404
     print('rejections ok:', bad.json()['message'])
 
     # happy path
@@ -138,6 +153,8 @@ def main():
     print('statuses:', ' -> '.join(seen))
     assert j['status'] == 'done', j
     check_result(j['result'], job_id)
+    if 'overlayUrl' in j['result']:
+        print('overlay ok:', check_overlay(c, j['result']), 'bytes')
     print('result ok:', len(j['result']['segments']), 'segments,', len(j['result']['student']['frames']),
           'frames in playback order')
 

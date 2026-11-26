@@ -51,7 +51,9 @@ src/
 
 ## 디자인
 
-- 밝은 테마. 모바일 430px 단일 컬럼, 데스크톱에선 가운데 정렬. 하단 고정 CTA(`BottomBar`)
+- 밝은 테마. 웹(데스크톱) 기준 + 반응형 (2026-11-26 결정)
+  - 결과 화면(`/result`): 넓은 화면 레이아웃. 왼쪽 오버레이 영상(항상), 구간을 누르면 오른쪽에 3D 뷰어. 모바일 대응은 그다음에 한다
+  - 그 밖의 화면: 지금처럼 모바일 430px 단일 컬럼, 데스크톱에선 가운데 정렬. 하단 고정 CTA(`BottomBar`)
 - 색 규칙은 어디서나 같다: 코치 = 파랑(`coach`), 나 = 주황(`me`), 빠름 = 빨강(`fast`), 느림 = 파랑(`slow`), 판정은 `good / warn / bad`
 - 토큰은 `src/styles/index.css` 의 `@theme`. three.js 재질 색은 CSS 변수를 못 쓰므로 `SkeletonViewer` 에 같은 hex 를 적어둔다
 - 아이콘 라이브러리 · 이모지 없이 간다 (`ExerciseMonogram` 처럼 글자 마크, 작은 인라인 SVG)
@@ -60,6 +62,6 @@ src/
 ## 현재 상태 (2026-11-07)
 
 - 4개 화면 + mock 으로 끝까지 동작. `pnpm typecheck` · `pnpm lint` · `pnpm format:check` 통과
-- `constants/dev.ts` 의 `SKIP_INPUT_GATES = true` 가 임시로 켜져 있다: 종목 · 영상 없이도 다음 화면으로 넘어간다. 실제 API 연결 전에 끈다
+- `constants/dev.ts` 의 `SKIP_INPUT_GATES` 는 mock 모드(`VITE_USE_MOCK=true` 또는 `VITE_API_BASE_URL` 비어 있음)에서만 켜진다: 종목 · 영상 없이도 다음 화면으로 넘어간다. 실제 백엔드에 붙이면 자동으로 꺼진다
 - 미확정: API 스키마, 촬영 가이드 문구(지금은 임시), LLM 피드백 형식, 점수 산식 · 표현
 - 남은 일: 기본 코치 영상 실제 데이터, 실제 API 연결

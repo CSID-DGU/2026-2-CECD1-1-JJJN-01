@@ -14,6 +14,15 @@ Output contract (consumed by pipeline/skeleton_extract/to_mixamo_format/wham_for
   pose_world  (T, 72), trans_world (T, 3), betas (10,)
   detected    (T,) bool           frames where WHAM produced the tracked subject
   fps, source
+Camera frame (for drawing the mesh over the video WHAM read; OpenCV axes: x right, y down, z forward):
+  pose_cam     (T, 72) float32   root rotation in the camera frame + the same 23 body rotations as pose_world
+  trans_cam    (T, 3)  float32   smplx transl that puts the mesh in the camera frame (WHAM's `trans`)
+  betas_frames (T, 10) float32   per-frame betas. WHAM's own camera mesh uses these; trans_cam keeps the hip
+                                 centre (J_regressor_wham 11/12) where WHAM put it, so with the mean `betas`
+                                 the mesh may sit a few mm off
+  focal        ()      float32   sqrt(w^2 + h^2) px, principal point at the image centre (WHAM's
+                                 compute_cam_intrinsics, used because no calibration is given)
+  img_size     (2,)    float32   (w, h) of the video WHAM read
 """
 import argparse
 import contextlib
@@ -113,10 +122,16 @@ def extract(video, work_dir, flip_eval=True, fast_init=True):
     detected = np.zeros(T, bool)
     detected[ids] = True
     full = lambda a: (lambda z: (z.__setitem__(ids, a), z)[1])(np.full((T,) + a.shape[1:], np.nan, np.float32))
+    w, h = cap.get(cv2.CAP_PROP_FRAME_WIDTH), cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
     return dict(joints=joints, rest_joints=rest.numpy().astype(np.float32),
                 pose_world=full(np.asarray(r['pose_world'], np.float32)),
                 trans_world=full(np.asarray(r['trans_world'], np.float32)),
-                betas=betas[0].numpy(), detected=detected, fps=float(fps), source=str(video))
+                betas=betas[0].numpy(), detected=detected, fps=float(fps), source=str(video),
+                pose_cam=full(np.asarray(r['pose'], np.float32)),
+                trans_cam=full(np.asarray(r['trans'], np.float32)),
+                betas_frames=full(np.asarray(r['betas'], np.float32).reshape(len(ids), -1)),
+                focal=np.float32((w * w + h * h) ** 0.5),          # same as WHAM demo (calib=None)
+                img_size=np.array([w, h], np.float32))
 
 
 def main():

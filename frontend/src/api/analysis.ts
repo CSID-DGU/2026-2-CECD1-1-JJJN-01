@@ -1,6 +1,6 @@
 import type { AnalysisJob, CreateAnalysisRequest, CreateAnalysisResponse } from '@/types/analysis';
 import { mockCreateAnalysis, mockGetAnalysisJob } from '@/mocks/analysisApi';
-import { request, USE_MOCK } from './client';
+import { API_BASE_URL, request, USE_MOCK } from './client';
 
 /**
  * 분석 요청. 영상 원본을 전처리 없이 그대로 보낸다.
@@ -23,5 +23,8 @@ export async function createAnalysis(req: CreateAnalysisRequest): Promise<Create
  */
 export async function getAnalysisJob(jobId: string): Promise<AnalysisJob> {
   if (USE_MOCK) return mockGetAnalysisJob(jobId);
-  return request<AnalysisJob>(`/analysis/${encodeURIComponent(jobId)}`);
+  const job = await request<AnalysisJob>(`/analysis/${encodeURIComponent(jobId)}`);
+  // 백엔드는 오버레이 영상을 상대 경로(/analysis/{jobId}/overlay.mp4)로 준다
+  if (job.result?.overlayUrl?.startsWith('/')) job.result.overlayUrl = `${API_BASE_URL}${job.result.overlayUrl}`;
+  return job;
 }

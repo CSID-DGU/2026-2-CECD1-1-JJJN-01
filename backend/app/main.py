@@ -19,7 +19,7 @@ from pathlib import Path
 from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from . import constants
 from .debug import api_log
@@ -130,3 +130,13 @@ def get_analysis(job_id: str, request: Request):
     response = job.public()
     api_log.get(job, response, client)
     return response
+
+
+# 결과의 overlayUrl: 코치를 사용자 영상 위에 겹친 영상 (Range 요청 지원: 영상 탐색)
+@app.get('/analysis/{job_id}/overlay.mp4')
+def get_overlay(job_id: str):
+    job = store.get(job_id)
+    path = Path(job.dir) / 'overlay' / 'overlay.mp4' if job and job.status == 'done' else None
+    if path is None or not path.is_file():
+        raise BadRequest('오버레이 영상을 찾을 수 없어요.', status=404)
+    return FileResponse(path, media_type='video/mp4')

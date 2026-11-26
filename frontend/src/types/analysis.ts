@@ -243,4 +243,15 @@ export interface AnalysisResult {
   poseMetrics?: PoseMetrics;
   /** LLM 단계가 아직 없으면 undefined */
   feedback?: LlmFeedback;
+  /**
+   * 사용자 영상 위에 리타겟팅된 코치를 SMPL 메시로 겹친 영상 (engine/pipeline/overlay/coach_on_video.py).
+   * 재생 순서로 만들어서 재생 프레임 k = 영상 시각 k / student.fps 다 (3D 뷰어와 같은 시계).
+   * 만들지 못했으면 없다: 화면은 3D 뷰어만 보여준다.
+   */
+  overlayUrl?: string;
+  /**
+   * 3D 뷰어 첫 시점: 사용자 몸에서 사용자 영상 카메라 쪽을 향하는 단위벡터 (student.frames 와 같은 좌표).
+   * 3D 가 영상과 같은 방향에서 시작한다. 없으면 뷰어 기본 시점.
+   */
+  viewDirection?: Vec3;
 }

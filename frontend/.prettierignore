@@ -1,3 +1,5 @@
 node_modules
 dist
 pnpm-lock.yaml
+# 파이프라인이 만든 실제 결과 (mocks/analysisResult.ts). 생성물이라 한 줄 그대로 둔다
+src/mocks/*/result.json
