@@ -1,0 +1,216 @@
+# SMPL 오버레이 — 구현 계획
+
+학생 원본 영상 위에 "학생 체형으로 리타겟팅한 코치"를 SMPL 메시로 반투명하게 겹쳐 보여준다.
+코치 회전의 출처를 두 가지로 만들고(방식 1 = WHAM SMPL 회전 그대로, 방식 2 = PAN 출력을 SMPL로 변환)
+결과를 비교한다.
+
+이 문서는 로컬에서 정리한 논의 결과다. 구현은 GPU 서버(WHAM · SMPL 모델 · `runs/` 가 있는 곳)에서 한다.
+
+---
+
+## 1. 어떻게 이 결론이 나왔나 (2026-11-25 ~ 26 논의 요약)
+
+**출발 질문:** "리타겟팅된 체형 기반 스켈레톤을 원본 영상에 올리면 자연스러울까? PAN이 원래 체형과 맞나?"
+
+**확인한 사실** (근거는 `engine/pipeline/README.md` 측정값과 코드)
+
+1. **WHAM 체형은 평균 쪽으로 끌린다.** SMPL 키가 코치 174.6 / 학생 172.8 cm, SMPL 평균 171.7 cm이었다.
+   코치와 학생의 뼈 길이 차이는 1–2 % 안이고, 뚜렷하게 다른 건 어깨너비(학생 0.83×) 하나였다.
+2. **PAN은 같은 골격 안에서 체형이 달라도 관절 각도를 거의 바꾸지 않는다.** 다리 ±15 %, 팔 ×0.9로
+   합성한 사용자로 실험했을 때 회전 변화가 평균 0.2°, 최대 0.7°였다.
+   결과는 사실상 "코치 각도 복사 + 사용자 뼈 길이 + 루트 높이를 다리 비율로 조정"이고,
+   복사 대비 오차(팔 ≈14°, 다리 ≈2°)는 체형 반영이 아니라 복원 오차다.
+   - 원인은 PAN 쪽이다. WHAM을 거치지 않은 합성 실험에서도 같은 결과가 나왔다.
+   - 학습 손실(`models/architecture_mixamo.py:261`)은 rec + cycle + GAN + **EE**(키로 나눈 손발 속도와
+     발 접촉, 가중치 50)다. 몸에 맞추는 조건이 있긴 하지만 약한 형태이고, 균형이나 비율에 따른 자세
+     조건은 없다.
+   - 같은 골격(그룹 A)의 학습 캐릭터가 4명(Aj, BigVegas, Kaya, SportyGranny)뿐이다
+     (`data_preprocess/Mixamo/__init__.py`).
+3. **지금 응답의 `frames`로는 SMPL을 만들 수 없다.** `frames`는 BigVegas 골격의 관절 위치에
+   SMPL-22 이름만 붙인 것이다(`pipeline/bvh_to_npz.py`). 회전, `betas`, 카메라 값이 없고,
+   골반을 원점으로 옮겨서 영상 속 위치 정보도 사라졌다.
+   ```
+   코치: 영상 → WHAM → SMPL 관절 위치 → BigVegas 관절 위치 → IK(회전) → PAN(회전) → BVH → FK(위치) → SMPL-22 이름 → 프론트
+   학생: 영상 → WHAM → SMPL 관절 위치 → BigVegas 관절 위치 → IK(회전) →            BVH → FK(위치) → SMPL-22 이름 → 프론트
+   ```
+   다만 `wham_extract.py`가 이미 `pose_world`, `trans_world`, `betas`, `rest_joints`를 영상마다 저장한다.
+   파이프라인이 쓰지 않을 뿐이다.
+
+**결정**
+
+- PAN은 파이프라인에 유지한다. 체형 반영은 나중에 학습 손실로 넣는 쪽이 확장하기 쉽다(→ 7. Future work).
+- 지금은 결과 화면이 자연스러운지가 우선이라 **SMPL 오버레이를 먼저 구현한다.**
+- 코치 자세를 두 방식으로 만들어 비교한다. PAN 없는 기준선(방식 1)과 비교해야 PAN이 실제로 무엇을
+  바꾸는지 볼 수 있다.
+
+## 2. 목적
+
+1. 학생 영상 위에 리타겟팅된 코치를 겹쳐서, 막대 스켈레톤보다 직관적으로 자세 차이를 보여준다.
+2. 방식 1과 방식 2를 같은 틀에서 렌더링하고 수치로 비교해서, PAN 결과를 화면에 쓸 가치가 있는지 판단한다.
+3. 화면 / 3D 뷰어 / 채점이 결국 같은 데이터를 쓰도록 하는 다음 결정의 근거를 만든다.
+
+**이번 범위에서 하지 않는 것:** 프론트, 백엔드 API 계약, 채점, 기존 BVH 경로 변경.
+이번 작업은 엔진 안에서 오버레이 영상과 비교 결과를 만드는 것까지다.
+
+## 3. 용어
+
+- **골격**: 관절 개수와 연결 구조 (BigVegas 구조 = PAN 그룹 A, SMPL 24관절)
+- **체형**: 같은 골격 안의 뼈 길이와 비율. SMPL에서는 `betas`
+- **재생 프레임 k**: 결과 화면 재생 시계의 k번째 프레임. 원본 영상의 k번째 프레임이 아니다
+- **`pb`**: `motion_scoring` `Result.playback()` 결과. 재생 프레임과 원본 프레임의 대응표
+
+## 4. 프레임 매핑 규칙 (`pb`)
+
+`pb` 키는 다음과 같다 (`motion_scoring/step6_playback.py`, `backend/app/result/frame_map.py`).
+
+| 키 | 의미 |
+|---|---|
+| `pb['student'][k]` | 재생 프레임 k에 보여줄 **학생 원본 프레임 번호** |
+| `pb['coach'][k]` | 재생 프레임 k에 보여줄 **코치 원본 프레임 번호** |
+| `pb['segments']` | 구간별 재생 범위 `[k0, k1]` |
+| `pb['dt']` | 재생 프레임 간격 (= 학생 프레임 주기) |
+
+- 두 배열의 길이는 같다. 둘 다 0에서 시작하고, 한 칸에 0 또는 1씩만 증가한다. 원본 프레임은 모두
+  순서대로 한 번씩 나온다 (`test_playback_shows_every_frame_in_order`).
+- 응답의 `frameMap`은 `pb`에서 파생한 값이다. `coachFrame[k] = k`이고, `kind[k]`는 `pb`의 k와 k−1을
+  비교해서 만든다. 원본 프레임 번호는 응답에 없으므로 **오버레이는 `pb`를 직접 쓴다.**
+  `frameMap`으로 역추론하는 방식은 쓰지 않는다. `together`에 "둘 다 멈춤"이 섞일 수 있고, `kind`
+  규칙이 바뀌면 조용히 틀린 결과가 나온다.
+- 렌더링 규칙은 `kind`로 나눌 필요 없이 이것 하나다.
+  ```
+  배경 = 학생 video_wham.mp4 의 pb['student'][k] 번째 프레임
+  코치 = 코치 자세 pb['coach'][k] 번째 (학생 betas, 학생 카메라로 렌더링)
+  ```
+  `coachAhead`에서는 배경이 멈추고 코치만 움직이고, `coachWaits`에서는 코치가 멈추고 배경만 진행된다.
+- **배경은 원본 업로드가 아니라 `runs/video_wham/<영상>/video_wham.mp4`다.** 30 fps를 넘거나 AV1인
+  영상은 H.264 30 fps로 변환된 뒤 WHAM에 들어가고, 프레임 번호는 이 변환본 기준이다.
+- **`pb`는 API와 같은 채점 결과에서 뽑는다.** 백엔드 `build_result`(`backend/app/result/result_builder.py`)는
+  종목 가중치를 넣어 `score(...)`를 부르므로, `score_user.py`의 채점과 `pb`가 다를 수 있다.
+  오버레이도 `build_result`와 같은 방식(`scorer_setup(exercise)` + `score(..., try_mirror=True)`)으로
+  `res`를 만들어 `res.playback()`을 쓴다. `res.to_dict()['mirrored']`도 같이 쓴다.
+
+## 5. 두 방식
+
+두 방식 모두 "코치 자세 + **학생 `betas`**"를 학생 카메라로 렌더링한다. 코치 관절 회전의 출처만 다르다.
+
+| | 코치 관절 회전의 출처 | 설명 |
+|---|---|---|
+| **방식 1** | 코치 WHAM npz `pose_world` | SMPL 단계의 리타겟팅. PAN을 쓰지 않는다 |
+| **방식 2** | PAN 출력 `runs/coach_user/<name>/coach_on_user_pan.bvh` | BigVegas 회전을 SMPL 회전으로 변환 |
+
+코치 `betas`는 쓰지 않는다. 코치 `betas`로 그리면 학생 몸과 어긋난다(예: 어깨너비 0.83×).
+
+### 방식 2: BigVegas → SMPL 회전 변환
+
+- 공식 FK(`outer_utils.Animation`)로 BigVegas 관절의 **전역 회전**을 구한다. 골반에서 나가는 세 뼈의
+  `*_virtual` 관절도 포함한다(`bvh_to_npz.py` 주석 참고). `Skeleton.raw_to_joint`는 이 셋을 하나로
+  합쳐 버리므로 쓰지 않는다.
+- 관절 대응은 `bvh_to_npz.SMPL_FROM_BIGVEGAS`를 재사용한다.
+- 관절마다 기본 자세를 보정한다: `G_smpl(j) = G_bigvegas(j) · R_rest(j)`
+  - `R_rest(j)`는 SMPL 기본 자세의 뼈 방향을 BigVegas 기본 자세의 뼈 방향으로 돌리는 고정 회전(최소 회전)이다.
+  - 그러면 자세를 잡았을 때 뼈 방향이 정확히 일치하고, 뼈 축 비틀림은 BigVegas 값이 그대로 유지된다.
+  - SMPL 기본 자세는 WHAM npz의 `rest_joints`(학생 `betas`), BigVegas 기본 자세는 BVH의 HIERARCHY에서 읽는다.
+- 자식 뼈가 여러 개인 관절(골반, `spine3`)은 자식 방향들에 가장 잘 맞는 회전을 쓴다
+  (`common/quat.py`의 Horn 회전 맞춤).
+- 끝 관절(손목, 머리, 발끝)과 BigVegas에 대응 관절이 없는 SMPL 관절(손 등)은 로컬 회전을 단위 회전으로 둔다.
+- 마지막으로 전역 회전을 SMPL 로컬 회전(`body_pose`)으로 바꾼다.
+
+## 6. 작성할 코드
+
+```
+engine/
+  tools/pose_estimation/
+    wham_extract.py          (수정) 카메라 기준 값 추가 저장
+  pipeline/overlay/
+    PLAN.md                  이 문서
+    __init__.py
+    coach_pose.py            코치 자세 만들기 (방식 1 / 방식 2, 출력 형식 공통)
+    place.py                 학생 영상에 배치 (두 방식 공통)
+    render.py                SMPL 메시를 배경 프레임 위에 렌더링 → mp4
+    compare.py               CLI: 실행 + 비교
+  tests/
+    test_overlay_convert.py  방식 2 변환 일관성 테스트
+```
+
+### 0. `tools/pose_estimation/wham_extract.py` (수정)
+- WHAM 결과에서 **카메라 기준** 루트 회전·관절 회전(`pose_cam`), 위치(`trans_cam`), 초점거리,
+  영상 크기를 추가로 저장한다. 기존 필드(`joints`, `pose_world`, `trans_world`, `betas`, `rest_joints`,
+  `detected`, `fps`)는 그대로 둔다.
+- **서버에서 먼저 확인:** `third_party/WHAM/demo.py`의 결과 dict 키 이름(`pose`, `trans`로 예상)과
+  초점거리 계산 방식. 예상한 이름이 아니라 실제 코드에 맞춘다.
+- 파일 상단의 출력 계약 docstring도 같이 고친다.
+- 비교할 영상은 WHAM을 다시 돌려야 카메라 값이 생긴다(`score_user --rerun`, 영상당 2–4분).
+
+### 1. `coach_pose.py`
+출력은 두 방식이 같다: **SMPL 관절별 로컬 회전 + 루트 기울기(앞뒤·좌우)**. 바라보는 방향(yaw)은
+빼고, `betas`와 위치는 넣지 않는다. 형식이 같아야 2–4를 공유할 수 있다.
+- `from_wham(npz)`: 방식 1. `pose_world`를 그대로 쓴다.
+- `from_pan_bvh(bvh, smpl_rest)`: 방식 2. 위의 5번 변환
+- 코치 WHAM npz 프레임 수와 PAN BVH 프레임 수가 같은지 확인한다. 둘 다 30 fps라 같을 것으로
+  예상하지만, 다르면 시간 기준으로 맞춘다.
+- 루트 회전에서 바라보는 방향만 분리할 때는 `common/quat.py`의 비틀림/흔들림(twist/swing) 분해를 쓴다.
+
+### 2. `place.py`
+재생 프레임 k마다 다음과 같이 배치한다.
+- 체형: 학생 `betas`
+- 회전: 코치 자세 `pb['coach'][k]`
+- 바라보는 방향: 학생 프레임 `pb['student'][k]`의 방향 (world 좌표에서 분리)
+- 위치: 기본은 **발 기준**. 코치 양발 중점을 학생 양발 중점에 맞춘다. 스쿼트에서 골반 기준으로 맞추면
+  코치가 앉는 동안 발이 바닥 아래로 들어가거나 뜬다. 골반 기준은 옵션으로 둔다.
+- 좌우 반전: `mirrored`면 코치 자세를 좌우로 뒤집는다(좌우 관절을 서로 바꾸고 회전축 부호를 맞춤).
+  백엔드가 `shown_coach`에 하는 처리와 같은 의미다.
+- world 좌표 → 학생 카메라 좌표 변환. 고정 카메라라서 `pose_cam`과 `pose_world`의 루트 회전 차이로
+  카메라 회전을 구한다(프레임마다 거의 같아야 한다).
+
+### 3. `render.py`
+- `smplx`로 메시를 만들고, 배경은 학생 `video_wham.mp4`의 `pb['student'][k]`번째 프레임이다.
+  코치를 반투명으로 그리고, 재생 순서대로 mp4를 만든다.
+- 렌더러는 **WHAM 데모의 렌더러를 재사용**한다. 서버에서 `third_party/WHAM` 코드를 보고 맞춘다.
+- 색 규칙은 프론트와 같다: 코치 = 파랑. 두 방식을 한 화면에 겹칠 때는 방식 2를 다른 색으로 구분한다.
+
+### 4. `compare.py` (CLI)
+```bash
+python -m pipeline.overlay.compare --run <scoring 이름> [--anchor feet|pelvis]
+```
+`runs/overlay/<이름>/`에 다음을 저장한다.
+- `student_self.mp4`: 학생 자신의 SMPL(학생 자세 + 학생 `betas`)을 올린 영상. **가장 먼저 확인할 것.**
+  이게 맞지 않으면 원인은 WHAM 추정이나 투영 쪽이다.
+- `overlay_m1.mp4`, `overlay_m2.mp4`, `overlay_both.mp4`(두 방식을 색을 달리해 한 화면에)
+- `compare.json`
+  - 방식 1 vs 2의 관절별 회전 차이 (평균 / 중앙값 / 최대, 관절별)
+  - 방식 1 vs 2의 뼈 방향 차이 (채점과 같은 기준)
+  - 방식 2 변환의 왕복 오차: 코치 IK BVH(`source_pan_input.bvh`)를 SMPL로 변환해 WHAM 원래 값과
+    비교한다. "SMPL → BigVegas → SMPL" 과정 자체에서 생기는 오차를 측정하는 것이다.
+
+### 5. `engine/tests/test_overlay_convert.py`
+합성 골격에 무작위 회전을 주고, 방식 2 변환 후 SMPL FK의 뼈 방향이 BigVegas FK의 뼈 방향과 일치하는지
+확인한다. SMPL 모델 파일 없이 numpy만으로 돌아가게 만든다.
+
+## 7. 진행 순서와 완료 기준
+
+1. 서버에서 확인: WHAM `demo.py` 결과 키, 초점거리, 렌더러 사용법
+2. 0번 수정 → 테스트 영상 1쌍을 `--rerun`
+3. `student_self.mp4`: 학생 메시가 영상 속 학생과 겹치는지 눈으로 확인
+4. 방식 1 → `overlay_m1.mp4`
+5. 방식 2 변환 + 테스트 → `overlay_m2.mp4`, `overlay_both.mp4`, `compare.json`
+6. 결과를 보고 팀에서 결정: 화면 / 3D 뷰어 / 채점을 어떤 코치 데이터로 통일할지
+
+**완료 기준:** 3–5의 영상과 `compare.json`이 나오고, `coachAhead` / `coachWaits` 구간에서 배경과
+코치가 규칙대로 멈추고 움직인다.
+
+## 8. 이후 작업 (이번 범위 밖)
+
+- **프론트 연결:** 결과 화면에 오버레이 영상을 먼저 보여주고, 이상한 구간은 3D 뷰어로 돌려 본다.
+  - 두 화면 모두 결과 화면의 재생 시계 하나(`player.frame`)를 따른다.
+  - 오버레이는 `video.currentTime = k / fps`로 맞춘다. 구간을 누르면(`jumpToSegment`) 두 화면이 같이 이동한다.
+  - 계약에 오버레이 영상 URL 필드를 추가한다. CLAUDE.md 규칙대로 `types/`, `api/`, `mocks/`만 고친다.
+  - 3D 뷰어도 학생·코치 SMPL 관절로 바꾼다. 이름이 SMPL-22라 `frames` 형식은 그대로 쓸 수 있다.
+  - 3D 뷰어는 오버레이의 한계(시점 고정, 카메라 깊이 방향 차이가 안 보임)를 보완하는 역할이다.
+- **데이터 통일:** 화면은 SMPL로, 채점은 PAN BVH로 하면 보이는 자세와 점수가 어긋난다. 6단계 결과를
+  보고 정한다.
+- **체형 반영:** PAN 출력 뒤에 제약 최적화 후처리(무게중심이 발 위에 있는지, 발 접촉)를 먼저 붙여 검증한다.
+  그다음 같은 손실을 PAN 학습 손실로 옮기고, 보낼 대상의 뼈 길이를 무작위로 바꿔 가며 미세조정한다.
+- **PAN을 SMPL 골격으로 재학습:** SMPL → PAN → SMPL로 변환 단계가 사라지고, `betas`를 무작위로 뽑으면
+  실제 사람 체형 분포로 학습할 수 있다(AMASS 등, 라이선스 확인 필요). 그러면 방식 2 변환은 임시 단계가 된다.
+- **체형 추정 보완:** WHAM 체형이 평균 쪽으로 끌리는 문제. 사용자 키를 입력받아 크기 기준으로 쓰는
+  방법이 있지만 비율은 여전히 영상 추정에 의존한다.
