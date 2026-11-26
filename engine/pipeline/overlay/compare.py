@@ -43,59 +43,12 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from pipeline.common.paths import PROJECT, REPO  # noqa: E402
+from pipeline.common.paths import REPO  # noqa: E402
 from pipeline.overlay import coach_pose as C  # noqa: E402
 from pipeline.overlay import place as P  # noqa: E402
 from pipeline.overlay import render as R  # noqa: E402
+from pipeline.overlay.runs import Run, api_playback, bvh_frames, jsonable  # noqa: E402
 from pipeline.overlay.smpl_np import SMPL22, Body, aa_to_mat, mat_to_aa  # noqa: E402
-
-
-def api_playback(retarget_dir, exercise):
-    """res.playback() and res.to_dict()['mirrored'] exactly as backend build_result makes them."""
-    if str(PROJECT / 'backend') not in sys.path:
-        sys.path.insert(0, str(PROJECT / 'backend'))
-    from app.result.result_builder import scorer_setup
-    from pipeline.bvh_to_npz import bvh_joints
-    cfg, weights = scorer_setup(exercise)
-    from motion_scoring import score, track_from_joints
-    coach, names, fps_c = bvh_joints(retarget_dir / 'coach_on_user_pan.bvh')
-    user, _, fps_u = bvh_joints(retarget_dir / 'user.bvh')
-    track = lambda j, fps: track_from_joints(j, np.arange(len(j)) / fps, 'y', None, names)
-    res = score(track(coach, fps_c), track(user, fps_u), cfg, weights, try_mirror=True)
-    return res.playback(), bool(res.to_dict()['mirrored'])
-
-
-def jsonable(x):
-    if isinstance(x, dict):
-        return {k: jsonable(v) for k, v in x.items()}
-    if isinstance(x, (list, tuple, np.ndarray)):
-        return [jsonable(v) for v in x]
-    if isinstance(x, np.generic):
-        return x.item()
-    return x
-
-
-class Run:
-    """A run_video output: wham.npz, report.json (frames_used, fps_in, the video WHAM read)."""
-
-    def __init__(self, path):
-        self.dir = Path(path)
-        self.report = json.loads((self.dir / 'report.json').read_text())
-        self.npz = dict(np.load(self.dir / 'wham.npz'))
-        missing = [k for k in ('pose_cam', 'trans_cam', 'focal', 'img_size') if k not in self.npz]
-        if missing:
-            raise SystemExit(f'{self.dir}/wham.npz has no {missing}: rerun WHAM (score_user --rerun)')
-        self.video = Path(self.report['video'])          # video_wham.mp4 when converted, else the source
-
-    def frame(self, bvh_i):
-        return min(P.npz_frame(bvh_i, self.report), len(self.npz['detected']) - 1)
-
-
-def bvh_frames(path):
-    for line in open(path):
-        if line.startswith('Frames:'):
-            return int(line.split()[1])
-    raise ValueError(f'{path}: no Frames line')
 
 
 def run_overlay(body, student, coaches, pb, mirrored, out, anchor, alpha):

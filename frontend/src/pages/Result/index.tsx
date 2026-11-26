@@ -1,8 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router';
-import { BottomBar } from '@/components/BottomBar';
-import { Button } from '@/components/Button';
-import { PageHeader } from '@/components/PageHeader';
 import { SectionHeading } from '@/components/SectionHeading';
 import { EXERCISE_BY_ID } from '@/constants/exercises';
 import { ROUTES } from '@/constants/routes';
@@ -12,15 +9,19 @@ import type { Segment } from '@/types/analysis';
 import { segmentAtTime } from '@/utils/segments';
 import { secondsToFrame } from '@/utils/skeleton';
 import { FeedbackPanel } from './components/FeedbackPanel';
-import { SegmentDetail } from './components/SegmentDetail';
+import { OverlayVideo } from './components/OverlayVideo';
+import { ResultHeader } from './components/ResultHeader';
 import { SegmentTimeline } from './components/SegmentTimeline';
 import { FrameControls } from './components/SkeletonViewer/FrameControls';
 import { SkeletonViewer, type ViewerLayout } from './components/SkeletonViewer';
-//example을 보여주기 위한 코드(주석) 추가
+import { ViewerPanel } from './components/ViewerPanel';
+
 /**
- * 4단계: 결과.
- * 3D 뷰어(나 vs 리타겟팅된 코치) → 구간 타임라인 → 구간 상세 → 피드백.
- * 타임라인·피드백에서 구간을 누르면 뷰어가 그 구간으로 간다.
+ * 4단계: 결과 (넓은 화면 기준).
+ * 왼쪽: 코치를 내 영상 위에 겹친 오버레이 영상. 오른쪽: 같은 프레임의 3D 뷰어 + 지금 구간의 상세.
+ * 구간을 누르면 둘 다 그 구간으로 간다.
+ * 아래: 재생 컨트롤 → 구간 타임라인 → 피드백. 영상과 3D 는 재생 시계(player) 하나를 따른다.
+ * 오버레이 영상이 없는 결과(overlayUrl 없음)는 왼쪽에 3D 뷰어를 그린다.
  */
 export function ResultPage() {
   const navigate = useNavigate();
@@ -32,6 +33,8 @@ export function ResultPage() {
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [layout, setLayout] = useState<ViewerLayout>('overlay');
+  // 구간은 아래(타임라인 · 피드백)에서 누르므로, 누르면 영상과 3D 가 있는 위쪽으로 올라간다
+  const stageRef = useRef<HTMLElement>(null);
 
   const currentSec = player.frame / fps;
   const playingSegment = useMemo(
@@ -42,6 +45,7 @@ export function ResultPage() {
   const jumpToSegment = useCallback(
     (segment: Segment) => {
       setSelectedId(segment.id);
+      stageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       player.pause();
       if (segment.studentRange) player.seek(secondsToFrame(segment.studentRange[0], fps, frameCount));
     },
@@ -50,7 +54,7 @@ export function ResultPage() {
 
   if (!result) return <Navigate to={ROUTES.home} replace />;
 
-  const { segments, student, coachRetargeted } = result;
+  const { segments, student, coachRetargeted, overlayUrl } = result;
   const exerciseName = EXERCISE_BY_ID[result.exercise].name;
 
   // 재생 중엔 재생 위치의 구간을, 멈췄을 땐 고른 구간(없으면 재생 위치의 구간)을 보여준다
@@ -65,45 +69,58 @@ export function ResultPage() {
   // 타임라인의 축 길이. 프레임 k 는 [k, k + 1) / fps 를 차지하고, 마지막 구간은 frameCount / fps 에서 끝난다
   const totalSec = frameCount / fps;
 
+  const viewer = (
+    <SkeletonViewer
+      student={student}
+      coach={coachRetargeted}
+      studentFrame={player.frame}
+      coachFrame={coachFrame}
+      frameKind={frameKind}
+      highlightBones={highlightBones}
+      layout={layout}
+      onLayoutChange={setLayout}
+      className="h-full"
+    />
+  );
+
   return (
     <>
-      <PageHeader
+      <ResultHeader
         title={`${exerciseName} 분석 결과`}
-        backTo={ROUTES.upload}
-        right={
-          <button
-            type="button"
-            onClick={() => {
-              reset();
-              navigate(ROUTES.home);
-            }}
-            className="text-[13px] font-semibold text-ink-muted"
-          >
-            처음으로
-          </button>
-        }
+        onBack={() => navigate(ROUTES.upload)}
+        onRetry={() => navigate(ROUTES.upload)}
+        onHome={() => {
+          reset();
+          navigate(ROUTES.home);
+        }}
       />
 
-      <main className="flex flex-1 flex-col gap-8 px-5 pt-3 pb-6">
-        <section className="flex flex-col gap-3">
-          <SkeletonViewer
-            student={student}
-            coach={coachRetargeted}
-            studentFrame={player.frame}
-            coachFrame={coachFrame}
-            frameKind={frameKind}
-            highlightBones={highlightBones}
-            layout={layout}
-            onLayoutChange={setLayout}
-          />
+      <main className="flex flex-1 flex-col gap-10 pt-4 pb-16">
+        <section ref={stageRef} className="flex scroll-mt-20 flex-col gap-4">
+          {/* 영상(세로)은 높이에 맞춰 폭이 정해지고, 오른쪽 칸이 남은 폭을 채운다 */}
+          <div className="flex h-[min(72vh,760px)] min-h-[480px] gap-6">
+            {overlayUrl ? (
+              <OverlayVideo src={overlayUrl} player={player} fps={fps} className="h-full w-auto max-w-[55%]" />
+            ) : (
+              <div className="aspect-square h-full">{viewer}</div>
+            )}
+            <div className="min-w-0 flex-1">
+              <ViewerPanel
+                segment={activeSegment}
+                viewer={overlayUrl ? viewer : undefined}
+                summary={result.feedback?.summary}
+              />
+            </div>
+          </div>
           <FrameControls player={player} fps={fps} frameCount={frameCount} />
           <p className="text-[12px] text-ink-faint">
-            드래그해서 돌려 볼 수 있어요. 내 스켈레톤의 빨간 뼈가 코치와 차이가 큰 곳이에요.
+            {overlayUrl ? '영상 속 파란 몸이 내 체형으로 옮긴 코치예요. ' : ''}
+            3D 뷰어에서 내 스켈레톤의 빨간 뼈가 코치와 차이가 큰 곳이에요.
           </p>
         </section>
 
         <section>
-          <SectionHeading title="구간별로 보기" description="누르면 그 구간으로 이동해요" />
+          <SectionHeading title="구간별로 보기" description="누르면 영상과 3D 가 그 구간으로 이동해요" />
           <SegmentTimeline
             segments={segments}
             totalSec={totalSec}
@@ -111,16 +128,9 @@ export function ResultPage() {
             selectedId={activeSegment?.id ?? null}
             onSelect={jumpToSegment}
           />
-          <div className="mt-4">
-            {activeSegment ? (
-              <SegmentDetail segment={activeSegment} />
-            ) : (
-              <p className="text-[13px] text-ink-faint">구간을 눌러 자세한 내용을 확인해 보세요.</p>
-            )}
-          </div>
         </section>
 
-        <section>
+        <section className="max-w-[820px]">
           <SectionHeading title="코치 피드백" />
           <FeedbackPanel
             feedback={result.feedback}
@@ -132,12 +142,6 @@ export function ResultPage() {
           />
         </section>
       </main>
-
-      <BottomBar>
-        <Button size="lg" block onClick={() => navigate(ROUTES.upload)}>
-          다른 영상으로 다시 비교
-        </Button>
-      </BottomBar>
     </>
   );
 }

@@ -243,4 +243,10 @@ export interface AnalysisResult {
   poseMetrics?: PoseMetrics;
   /** LLM 단계가 아직 없으면 undefined */
   feedback?: LlmFeedback;
+  /**
+   * 사용자 영상 위에 리타겟팅된 코치를 SMPL 메시로 겹친 영상 (engine/pipeline/overlay/coach_on_video.py).
+   * 재생 순서로 만들어서 재생 프레임 k = 영상 시각 k / student.fps 다 (3D 뷰어와 같은 시계).
+   * 만들지 못했으면 없다: 화면은 3D 뷰어만 보여준다.
+   */
+  overlayUrl?: string;
 }
